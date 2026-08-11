@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    background-color: #f8fafc;
+    color: #0f172a;
+    font-family: 'Plus Jakarta Sans', 'Outfit', system-ui, -apple-system, sans-serif;
+    transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark body {
+    background-color: #0f172a;
+    color: #f8fafc;
+  }
+}
+
+/* Modern Glassmorphism & Card Utility Classes */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+
+.dark .glass-panel {
+  background: rgba(15, 23, 42, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(30, 41, 59, 0.8);
+}
+
+.glass-panel-warm {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.dark .glass-panel-warm {
+  background: rgba(30, 41, 59, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(51, 65, 85, 0.9);
+}
+
+/* Vibrant Glows */
+.glow-amber {
+  box-shadow: 0 10px 30px -10px rgba(245, 158, 11, 0.25);
+}
+
+.glow-indigo {
+  box-shadow: 0 10px 30px -10px rgba(99, 102, 241, 0.25);
+}
+
+.glow-rose {
+  box-shadow: 0 10px 30px -10px rgba(244, 63, 94, 0.25);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+/* =============================================
+   GLOBAL DARK MODE FORM INPUT STYLES
+   Applies to ALL forms: Student, Faculty, Dept
+   ============================================= */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]):not([type="button"]),
+.dark select,
+.dark textarea {
+  background-color: #111113 !important;
+  color: #ffffff !important;
+  border-color: #4b5563 !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #6b7280 !important;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  background-color: #111113 !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2) !important;
+  outline: none !important;
+}
+
+/* Disabled / locked fields stay darker */
+.dark input:disabled,
+.dark input[readonly] {
+  background-color: #0d0d0e !important;
+  color: #9ca3af !important;
+  opacity: 0.8 !important;
+  cursor: not-allowed !important;
+}
+
+/* Select option dark background (browser-dependent) */
+.dark select option {
+  background-color: #1c1c1e;
+  color: #ffffff;
+}

@@ -1,0 +1,15 @@
+{
+  "name": "college-erp-ai-root",
+  "private": true,
+  "scripts": {
+    "postinstall": "cd server && npx prisma generate",
+    "build": "cd server && npm run build",
+    "seed": "cd server && npx tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.3"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10"
+  }
+}

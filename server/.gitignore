@@ -4,21 +4,17 @@ node_modules/
 # Environment variables
 .env
 .env.*
-!.env.example
 
 # Prisma generated files
 /src/generated/prisma
 
 # Build output
 dist/
-build/
 
 # Database files and backups
 database/*.db
 database/*.sql
 database/*.dump
-*.db
-*.sql
 
 # Temporary files
 scratch/
