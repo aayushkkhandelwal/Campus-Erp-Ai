@@ -3,7 +3,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { authService } from '../../services/auth.service';
 import { Settings as SettingsIcon, Moon, Sun, Bell, Shield, Database, Smartphone, CheckCircle2 } from 'lucide-react';
-import { ThemeSliderSwitch } from '../../components/ui/ThemeSliderSwitch';
+import { ThemeToggleButton } from '../../components/ui/ThemeToggleButton';
 
 export const Settings = () => {
   const { theme } = useTheme();
@@ -93,7 +93,7 @@ export const Settings = () => {
                 <p className="text-xs text-slate-500 dark:text-slate-400">Currently set to {theme} mode</p>
               </div>
             </div>
-            <ThemeSliderSwitch showLabels size="lg" />
+            <ThemeToggleButton showLabel />
           </div>
         </div>
 
