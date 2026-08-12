@@ -3,9 +3,10 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { authService } from '../../services/auth.service';
 import { Settings as SettingsIcon, Moon, Sun, Bell, Shield, Database, Smartphone, CheckCircle2 } from 'lucide-react';
+import { ThemeSliderSwitch } from '../../components/ui/ThemeSliderSwitch';
 
 export const Settings = () => {
-  const { theme, toggleTheme } = useTheme();
+  const { theme } = useTheme();
   const { user } = useAuth();
   const [twoFAEnabled, setTwoFAEnabled] = useState(user?.twoFactorEnabled || false);
   const [loading, setLoading] = useState(false);
@@ -92,12 +93,7 @@ export const Settings = () => {
                 <p className="text-xs text-slate-500 dark:text-slate-400">Currently set to {theme} mode</p>
               </div>
             </div>
-            <button
-              onClick={toggleTheme}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500 transition-colors cursor-pointer"
-            >
-              Toggle to {theme === 'light' ? 'Dark' : 'Light'} Mode
-            </button>
+            <ThemeSliderSwitch showLabels size="lg" />
           </div>
         </div>
 

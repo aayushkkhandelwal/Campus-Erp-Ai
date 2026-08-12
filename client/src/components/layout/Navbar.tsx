@@ -4,8 +4,6 @@ import {
   GraduationCap, 
   Search, 
   Bell, 
-  Sun, 
-  Moon, 
   User as UserIcon, 
   Settings, 
   LogOut, 
@@ -16,7 +14,7 @@ import {
   Menu
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { useTheme } from '../../context/ThemeContext';
+import { ThemeSliderSwitch } from '../ui/ThemeSliderSwitch';
 
 interface NavbarProps {
   onToggleSidebar?: () => void;
@@ -25,7 +23,6 @@ interface NavbarProps {
 
 export const Navbar = ({ onToggleSidebar, sidebarOpen }: NavbarProps) => {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const [profileOpen, setProfileOpen] = useState(false);
@@ -138,14 +135,8 @@ export const Navbar = ({ onToggleSidebar, sidebarOpen }: NavbarProps) => {
 
       {/* Right Controls */}
       <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3">
-        {/* Dark / Light Mode Toggle */}
-        <button
-          onClick={toggleTheme}
-          className="p-2 text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 dark:text-slate-300 dark:hover:text-amber-400 dark:hover:bg-slate-800 transition-colors"
-          title={`Switch to ${theme === 'light' ? 'Dark' : 'Light'} Mode`}
-        >
-          {theme === 'light' ? <Moon className="h-5 w-5 text-slate-600" /> : <Sun className="h-5 w-5 text-amber-400" />}
-        </button>
+        {/* Dark / Light Mode Slider Switch */}
+        <ThemeSliderSwitch size="sm" />
 
         {/* Notifications Popover */}
         <div className="relative" ref={notifRef}>
