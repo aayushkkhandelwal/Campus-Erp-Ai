@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { GraduationCap, Lock, Mail, Eye, EyeOff, LogIn, Sparkles, KeyRound, Clock, ShieldAlert } from 'lucide-react';
+import { GraduationCap, Lock, Mail, Eye, EyeOff, LogIn, Sparkles, Clock, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { TwoFactorModal } from '../../components/auth/TwoFactorModal';
 
@@ -34,7 +34,6 @@ export const Login = () => {
   const {
     register,
     handleSubmit,
-    setValue,
     watch,
     formState: { errors },
   } = useForm<LoginFormData>({
@@ -130,27 +129,6 @@ export const Login = () => {
     }
   };
 
-  const quickLogin = async (email: string, pass: string) => {
-    if (timerSeconds !== null && timerSeconds > 0) return;
-    setValue('email', email, { shouldValidate: true });
-    setValue('password', pass, { shouldValidate: true });
-    try {
-      setLoading(true);
-      setApiError(null);
-      const result: any = await login(email, pass);
-      if (result?.requires2FA && result?.userId) {
-        setPendingUserId(result.userId);
-        setShow2FAModal(true);
-      } else {
-        navigate('/dashboard', { replace: true });
-      }
-    } catch (err: any) {
-      handleLoginError(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const isLocked = timerSeconds !== null && timerSeconds > 0;
 
   return (
@@ -182,7 +160,7 @@ export const Login = () => {
           <div className="mb-6 rounded-2xl bg-gradient-to-br from-amber-500/10 to-rose-500/10 p-5 border border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 text-xs font-bold text-center flex flex-col items-center gap-2 shadow-lg backdrop-blur-md animate-pulse">
             <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-black uppercase tracking-wider text-[11px]">
               <Clock className="h-4 w-4 animate-spin text-amber-600 dark:text-amber-400" />
-              Account Lockout Active (2 Attempts Reached)
+              Account Lockout Active (5 Attempts Reached)
             </div>
             <div className="text-3xl font-black font-mono tracking-widest text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-5 py-2 rounded-2xl border border-amber-300 dark:border-amber-700 shadow-inner">
               {formatTimer(timerSeconds)}
@@ -200,7 +178,7 @@ export const Login = () => {
             {attemptsLeft === 1 && (
               <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[11px] font-extrabold text-amber-700 dark:text-amber-300 uppercase tracking-wide">
                 <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
-                Warning: Only 1 attempt remaining before 60s lock!
+                Warning: Final attempt remaining before account lockout!
               </div>
             )}
           </div>
@@ -294,45 +272,6 @@ export const Login = () => {
             )}
           </button>
         </form>
-
-        {/* Quick Demo Logins Grid */}
-        <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
-          <p className="text-center text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 flex items-center justify-center gap-1.5">
-            <KeyRound className="h-3.5 w-3.5 text-indigo-500" />
-            1-Click Demo Logins:
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => quickLogin('admin@college.edu', 'admin123')}
-              type="button"
-              disabled={loading || isLocked}
-              className="p-2.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200 text-left transition-all text-xs disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <div className="font-extrabold">Admin</div>
-              <div className="text-[10px] text-indigo-700 dark:text-indigo-300 truncate">admin@college.edu</div>
-            </button>
-
-            <button
-              onClick={() => quickLogin('faculty@college.edu', 'admin123')}
-              type="button"
-              disabled={loading || isLocked}
-              className="p-2.5 rounded-xl border border-violet-200 bg-violet-50 hover:bg-violet-100 dark:bg-violet-950/40 dark:border-violet-800 text-violet-900 dark:text-violet-200 text-left transition-all text-xs disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <div className="font-extrabold">Faculty</div>
-              <div className="text-[10px] text-violet-700 dark:text-violet-300 truncate">faculty@college.edu</div>
-            </button>
-
-            <button
-              onClick={() => quickLogin('student@college.edu', 'admin123')}
-              type="button"
-              disabled={loading || isLocked}
-              className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-left transition-all text-xs disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <div className="font-extrabold">Student</div>
-              <div className="text-[10px] text-emerald-700 dark:text-emerald-300 truncate">student@college.edu</div>
-            </button>
-          </div>
-        </div>
 
         {/* Footer */}
         <div className="mt-6 flex items-center justify-center gap-4 text-[11px] text-slate-400 dark:text-slate-500 font-extrabold border-t border-slate-100 dark:border-slate-800 pt-4">
