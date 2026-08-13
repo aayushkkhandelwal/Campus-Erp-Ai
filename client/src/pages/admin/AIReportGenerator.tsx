@@ -14,7 +14,7 @@ export const AIReportGenerator = () => {
       `1. OVERVIEW & EXPLICIT METRICS:\n` +
       `   • Total Enrolled Students: 1,200 Across 6 Academic Departments\n` +
       `   • Average Campus Attendance Rate: 88.4%\n` +
-      `   • Total Tuition Fee Collected: $1,220,000 (91.5% Target Achieved)\n` +
+      `   • Total Tuition Fee Collected: ₹1,22,00,000 (91.5% Target Achieved)\n` +
       `   • Active Faculty Roster: 85 Full-time Members\n\n` +
       `2. KEY ACADEMIC HIGHLIGHTS:\n` +
       `   • Computer Science & Engineering achieved highest attendance (92.1%).\n` +

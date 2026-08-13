@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -116,6 +117,24 @@ const recentActivities = [
 export const Dashboard = () => {
   const { user } = useAuth();
   const role = user?.role || 'ADMIN';
+
+  const [feesPaid, setFeesPaid] = useState<boolean>(() => {
+    return localStorage.getItem('college_erp_student_fees_paid') === 'true';
+  });
+
+  useEffect(() => {
+    const checkFeesPaid = () => {
+      setFeesPaid(localStorage.getItem('college_erp_student_fees_paid') === 'true');
+    };
+    window.addEventListener('storage', checkFeesPaid);
+    window.addEventListener('focus', checkFeesPaid);
+    window.addEventListener('college_erp_fees_updated', checkFeesPaid);
+    return () => {
+      window.removeEventListener('storage', checkFeesPaid);
+      window.removeEventListener('focus', checkFeesPaid);
+      window.removeEventListener('college_erp_fees_updated', checkFeesPaid);
+    };
+  }, []);
 
   // Live Today's Day & Schedule Calculation
   const todayDate = new Date();
@@ -395,13 +414,23 @@ export const Dashboard = () => {
                 <CheckSquare className="h-4 w-4 text-indigo-600" />
                 View Attendance
               </Link>
-              <Link
-                to="/student/fees"
-                className="inline-flex items-center gap-2 rounded-2xl bg-indigo-900/30 backdrop-blur-md px-5 py-3 text-xs font-black text-white border border-white/30 hover:bg-indigo-900/50 transition-all cursor-pointer"
-              >
-                <CreditCard className="h-4 w-4" />
-                Pay Dues ($300)
-              </Link>
+              {feesPaid ? (
+                <Link
+                  to="/student/fees"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-emerald-900/40 backdrop-blur-md px-5 py-3 text-xs font-black text-white border border-emerald-400/30 hover:bg-emerald-900/60 transition-all cursor-pointer"
+                >
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                  Fees Fully Paid (₹0)
+                </Link>
+              ) : (
+                <Link
+                  to="/student/fees"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-indigo-900/30 backdrop-blur-md px-5 py-3 text-xs font-black text-white border border-white/30 hover:bg-indigo-900/50 transition-all cursor-pointer"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Pay Dues (₹30,000)
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -445,17 +474,25 @@ export const Dashboard = () => {
           <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Pending Tuition Fee
+                Tuition Fee Status
               </span>
-              <div className="p-2.5 rounded-2xl text-white bg-gradient-to-br from-rose-500 to-pink-600">
-                <CreditCard className="h-5 w-5" />
+              <div className={`p-2.5 rounded-2xl text-white bg-gradient-to-br ${feesPaid ? 'from-emerald-500 to-teal-600' : 'from-rose-500 to-pink-600'}`}>
+                {feesPaid ? <CheckCircle2 className="h-5 w-5" /> : <CreditCard className="h-5 w-5" />}
               </div>
             </div>
             <div className="text-3xl font-black text-slate-900 dark:text-white font-['Outfit']">
-              $300 Due
+              {feesPaid ? '₹0 Due' : '₹30,000 Due'}
             </div>
-            <p className="mt-2 text-xs font-bold text-rose-500 dark:text-rose-400 flex items-center gap-1">
-              <AlertTriangle className="h-3.5 w-3.5" /> Due before 15 October
+            <p className={`mt-2 text-xs font-bold ${feesPaid ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'} flex items-center gap-1`}>
+              {feesPaid ? (
+                <>
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Tuition Fee Fully Paid
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-3.5 w-3.5" /> Due before 15 October
+                </>
+              )}
             </p>
           </div>
 
@@ -617,7 +654,7 @@ export const Dashboard = () => {
             </span>
           </div>
           <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 leading-relaxed">
-            "Attendance in Semester 5 has dropped by 8% over the last two weeks. DBMS (CS-501) has the highest absentee rate (14%). Overall fee collection is at 91.5% ($1.22M collected). Consider scheduling an academic review for Semester 5."
+            "Attendance in Semester 5 has dropped by 8% over the last two weeks. DBMS (CS-501) has the highest absentee rate (14%). Overall fee collection is at 91.5% (₹1.22 Cr collected). Consider scheduling an academic review for Semester 5."
           </p>
         </div>
       </div>

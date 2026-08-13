@@ -363,7 +363,7 @@ async function seedRealtimeData() {
   console.log('📢 Seeding Campus Notices & Bulletins...');
   const noticesToSeed = [
     { title: 'End-Semester Final Examination Schedule 2026 Released', content: 'The comprehensive timetable for Semester 6 end-term examinations has been published. All students are advised to review hall ticket requirements.', category: 'EXAM', targetRole: 'ALL', postedBy: 'Academic Registrar' },
-    { title: 'AI & Data Science Annual Hackathon 2026 Announced', content: 'Registration is now open for the 48-hour AI Hackathon hosted by the Computer Science department. Cash prizes worth $5,000 for top 3 teams.', category: 'EVENT', targetRole: 'STUDENT', postedBy: 'Dr. Robert Langdon' },
+    { title: 'AI & Data Science Annual Hackathon 2026 Announced', content: 'Registration is now open for the 48-hour AI Hackathon hosted by the Computer Science department. Cash prizes worth ₹50,000 for top 3 teams.', category: 'EVENT', targetRole: 'STUDENT', postedBy: 'Dr. Robert Langdon' },
     { title: 'Mid-Semester Grade Feedback & Remedial Sessions', content: 'Faculty members are requested to complete grade uploads by Friday 05:00 PM for academic council review.', category: 'ACADEMIC', targetRole: 'FACULTY', postedBy: 'Dean of Academics' },
   ];
 

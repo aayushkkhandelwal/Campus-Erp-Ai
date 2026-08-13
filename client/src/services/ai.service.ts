@@ -73,22 +73,22 @@ export const aiService = {
     if (q.includes('fee') || q.includes('pending fee') || q.includes('due') || q.includes('paid')) {
       if (q.includes('30 days') || q.includes('over 30') || q.includes('overdue')) {
         return `💳 **AI Fee Audit: Students with Pending Dues > 30 Days**\n\n` +
-          `1. **Aman Verma** (STU2026-003): **$300** pending (Overdue by 42 days)\n` +
-          `2. **Rahul Sharma** (STU2026-004): **$450** pending (Overdue by 35 days)\n` +
-          `3. **Priya Singh** (STU2026-005): **$300** pending (Overdue by 31 days)\n\n` +
+          `1. **Aman Verma** (STU2026-003): **₹30,000** pending (Overdue by 42 days)\n` +
+          `2. **Rahul Sharma** (STU2026-004): **₹45,000** pending (Overdue by 35 days)\n` +
+          `3. **Priya Singh** (STU2026-005): **₹30,000** pending (Overdue by 31 days)\n\n` +
           `💡 *AI Recommendation: Send automated SMS/Email reminders to these 3 accounts.*`;
       }
       if (q.includes('department') || q.includes('most fee')) {
         return `💰 **AI Financial Insights: Fee Collection by Department**\n\n` +
-          `1. **Computer Science & Engineering**: $540,000 (94% collected)\n` +
-          `2. **Electrical Engineering**: $372,000 (88% collected)\n` +
-          `3. **Mechanical Engineering**: $264,000 (85% collected)\n\n` +
-          `🏆 **Highest Collection**: Computer Science & Engineering ($540,000).`;
+          `1. **Computer Science & Engineering**: ₹5,40,00,000 (94% collected)\n` +
+          `2. **Electrical Engineering**: ₹3,72,00,000 (88% collected)\n` +
+          `3. **Mechanical Engineering**: ₹2,64,00,000 (85% collected)\n\n` +
+          `🏆 **Highest Collection**: Computer Science & Engineering (₹5,40,00,000).`;
       }
       return `💳 **AI Fee Query Result for ${currentUser?.fullName || 'User'}**:\n\n` +
-        `• **Total Semester Fee**: $1,200\n` +
-        `• **Amount Paid**: $900 (Approved Receipt #REC-2026-0812)\n` +
-        `• **Pending Balance**: **$300** (Due by 15 October 2026)\n\n` +
+        `• **Total Semester Fee**: ₹1,20,000\n` +
+        `• **Amount Paid**: ₹90,000 (Approved Receipt #REC-2026-0812)\n` +
+        `• **Pending Balance**: **₹30,000** (Due by 15 October 2026)\n\n` +
         `👉 You can pay your pending dues directly via the *Fees & Payments* tab.`;
     }
 
@@ -131,12 +131,12 @@ export const aiService = {
   // ----------------------------------------------------------------
   async generateDashboardInsights(role: Role): Promise<string> {
     if (role === 'ADMIN') {
-      return `Attendance in Semester 5 has dropped by 8% over the last two weeks. DBMS (CS-501) has the highest absentee rate (14%). Overall fee collection is at 91.5% ($1.22M collected). Consider scheduling an academic review for Semester 5.`;
+      return `Attendance in Semester 5 has dropped by 8% over the last two weeks. DBMS (CS-501) has the highest absentee rate (14%). Overall fee collection is at 91.5% (₹1.22 Cr collected). Consider scheduling an academic review for Semester 5.`;
     }
     if (role === 'FACULTY') {
       return `DBMS (CS-501) class attendance is down to 82%. 3 students (Rahul, Aman, Vikram) have missed 3+ consecutive lectures. Mid-term marks compilation is 80% complete.`;
     }
-    return `You have maintained a strong 93% attendance score. Your next exam is Mid-Sem DBMS on 12 October at 09:00 AM. You have a pending fee installment of $300 due by 15 October.`;
+    return `You have maintained a strong 93% attendance score. Your next exam is Mid-Sem DBMS on 12 October at 09:00 AM. You have a pending fee installment of ₹30,000 due by 15 October.`;
   },
 
   // ----------------------------------------------------------------

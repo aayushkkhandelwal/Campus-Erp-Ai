@@ -253,16 +253,16 @@ export const queryAiCopilot = async (req: AuthRequest, res: Response) => {
       if (userRole === 'STUDENT') {
         answer = `💳 **Personal Fee Ledger Statement for ${userEmail}**\n\n` +
           `• **Academic Year**: 2026-2027\n` +
-          `• **Total Semester Tuition**: $1,200.00\n` +
-          `• **Paid to Date**: $900.00 (Receipt #REC-2026-0812)\n` +
-          `• **Outstanding Balance**: **$300.00**\n` +
+          `• **Total Semester Tuition**: ₹1,20,000.00\n` +
+          `• **Paid to Date**: ₹90,000.00 (Receipt #REC-2026-0812)\n` +
+          `• **Outstanding Balance**: **₹30,000.00**\n` +
           `• **Due Date**: October 15, 2026\n\n` +
           `✅ You can settle your pending balance via the *Student Fees* tab.`;
       } else {
         answer = `💳 **Institutional Financial Ledger Summary**\n\n` +
-          `• **Total Tuition Fees Collected**: $1,176,000 (91.5% collection rate)\n` +
-          `• **Pending Outstanding Fees**: $109,200\n` +
-          `• **Highest Fee Collection Department**: Computer Science & Engineering ($540,000)\n\n` +
+          `• **Total Tuition Fees Collected**: ₹1,17,60,000 (91.5% collection rate)\n` +
+          `• **Pending Outstanding Fees**: ₹10,92,000\n` +
+          `• **Highest Fee Collection Department**: Computer Science & Engineering (₹5,40,00,000)\n\n` +
           `💡 *Recommendation*: Automated payment reminder SMS alerts sent to 12 overdue student accounts.`;
       }
     } else if (q.includes('timetable') || q.includes('schedule') || q.includes('class') || q.includes('room') || q.includes('lecture')) {
