@@ -10,7 +10,7 @@ import { departmentService } from '../../services/department.service';
 
 const studentSchema = z.object({
   firstName: z.string().min(2, 'First name is required'),
-  lastName: z.string().min(2, 'Last name is required'),
+  lastName: z.string().optional(),
   email: z.string().email('Valid email address is required'),
   studentId: z.string().min(3, 'Student ID is required'),
   dateOfBirth: z.string().min(1, 'Date of birth is required'),
@@ -18,6 +18,7 @@ const studentSchema = z.object({
   phone: z.string().min(5, 'Valid phone number is required'),
   address: z.string().min(5, 'Address is required'),
   departmentId: z.string().min(1, 'Department is required'),
+  semester: z.string().min(1, 'Semester is required'),
   enrollmentDate: z.string().min(1, 'Enrollment date is required'),
   status: z.enum(['ACTIVE', 'INACTIVE', 'GRADUATED', 'SUSPENDED']),
 });
@@ -55,7 +56,7 @@ export const EditStudent = () => {
     if (student) {
       reset({
         firstName: student.firstName,
-        lastName: student.lastName,
+        lastName: student.lastName || '',
         email: student.email,
         studentId: student.studentId,
         dateOfBirth: student.dateOfBirth ? student.dateOfBirth.split('T')[0] : '2003-04-15',
@@ -63,6 +64,7 @@ export const EditStudent = () => {
         phone: student.phone,
         address: student.address,
         departmentId: student.departmentId || 'dept-1',
+        semester: student.semester || '1',
         enrollmentDate: student.enrollmentDate ? student.enrollmentDate.split('T')[0] : '2022-09-01',
         status: student.status || 'ACTIVE',
       });
@@ -149,6 +151,23 @@ export const EditStudent = () => {
                   {departments.map((d: any) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
+                </select>
+                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400 pointer-events-none" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-stone-700 dark:text-stone-300 mb-1.5">Academic Semester *</label>
+              <div className="relative">
+                <select {...register('semester')} className="w-full appearance-none rounded-2xl border border-amber-200 bg-amber-50/40 px-4 py-2.5 pr-10 text-sm text-stone-900 focus:border-amber-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-amber-500/20 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 cursor-pointer font-bold">
+                  <option value="1">Semester 1 (Year 1)</option>
+                  <option value="2">Semester 2 (Year 1)</option>
+                  <option value="3">Semester 3 (Year 2)</option>
+                  <option value="4">Semester 4 (Year 2)</option>
+                  <option value="5">Semester 5 (Year 3)</option>
+                  <option value="6">Semester 6 (Year 3)</option>
+                  <option value="7">Semester 7 (Year 4)</option>
+                  <option value="8">Semester 8 (Year 4)</option>
                 </select>
                 <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400 pointer-events-none" />
               </div>

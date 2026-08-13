@@ -19,6 +19,7 @@ const studentSchema = z.object({
   phone: z.string().min(5, 'Valid contact phone number is required'),
   address: z.string().min(5, 'Residential address is required'),
   departmentId: z.string().min(1, 'Please select an academic department'),
+  semester: z.string().min(1, 'Academic semester is required'),
   enrollmentDate: z.string().min(1, 'Enrollment date is required'),
   status: z.enum(['ACTIVE', 'INACTIVE', 'GRADUATED', 'SUSPENDED']),
 });
@@ -60,6 +61,7 @@ export const AddStudent = () => {
       phone: '',
       address: '',
       departmentId: '',
+      semester: '1',
       enrollmentDate: new Date().toISOString().split('T')[0],
       status: 'ACTIVE',
     },
@@ -271,6 +273,30 @@ export const AddStudent = () => {
                 <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400 pointer-events-none" />
               </div>
               {errors.departmentId && <p className="mt-1 text-[11px] font-bold text-rose-500">{errors.departmentId.message}</p>}
+            </div>
+
+            {/* Semester */}
+            <div>
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-stone-700 dark:text-stone-200 mb-1.5">
+                Current Semester <span className="text-rose-500 font-bold">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  {...register('semester')}
+                  className="w-full appearance-none rounded-2xl border border-amber-200 bg-amber-50/40 px-4 py-2.5 pr-10 text-sm text-stone-900 focus:border-amber-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-amber-500/20 dark:border-stone-600 dark:bg-[#111113] dark:text-white dark:placeholder:text-stone-500 dark:focus:border-emerald-500 dark:focus:ring-emerald-500/30 dark:focus:bg-[#111113] cursor-pointer font-bold"
+                >
+                  <option value="1">Semester 1 (Year 1)</option>
+                  <option value="2">Semester 2 (Year 1)</option>
+                  <option value="3">Semester 3 (Year 2)</option>
+                  <option value="4">Semester 4 (Year 2)</option>
+                  <option value="5">Semester 5 (Year 3)</option>
+                  <option value="6">Semester 6 (Year 3)</option>
+                  <option value="7">Semester 7 (Year 4)</option>
+                  <option value="8">Semester 8 (Year 4)</option>
+                </select>
+                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400 pointer-events-none" />
+              </div>
+              {errors.semester && <p className="mt-1 text-[11px] font-bold text-rose-500">{errors.semester.message}</p>}
             </div>
 
             {/* Student ID (Locked & Read-Only) */}

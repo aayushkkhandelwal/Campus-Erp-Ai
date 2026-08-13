@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Sparkles, Clock, CheckCircle2, RefreshCw, Send, Check } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Calendar, Sparkles, Clock, CheckCircle2, RefreshCw, Send, Check, UserCheck, AlertCircle } from 'lucide-react';
 import { aiService, type TimetableSlot } from '../../services/ai.service';
 import { timetableService } from '../../services/timetable.service';
+import { facultyService } from '../../services/faculty.service';
 
 const DAY_ORDER: Record<string, number> = {
   Monday: 1,
@@ -29,12 +31,26 @@ const parseStartTime = (timeStr: string): number => {
 export const AITimetableGenerator = () => {
   const [semester, setSemester] = useState('Semester 5');
   const [subjectsText, setSubjectsText] = useState('DBMS, Operating Systems, Computer Networks, Software Engineering, AI');
-  const [facultyText, setFacultyText] = useState('Dr. Amit Sharma, Dr. Sarah Jenkins, Prof. Alan Turing, Dr. Robert Langdon');
   const [roomsText, setRoomsText] = useState('Room 201, Room 104, Lab 1, Lab 3');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [schedule, setSchedule] = useState<TimetableSlot[] | null>(null);
   const [publishedSuccess, setPublishedSuccess] = useState(false);
+  const [selectedFacultyIds, setSelectedFacultyIds] = useState<string[]>([]);
+
+  // Fetch real Faculty members from database
+  const { data: facultyRes, isLoading: loadingFaculty } = useQuery({
+    queryKey: ['faculty-list-timetable'],
+    queryFn: () => facultyService.getAll({ limit: 100 }),
+  });
+
+  const dbFacultyList = facultyRes?.data || [];
+
+  useEffect(() => {
+    if (dbFacultyList.length > 0 && selectedFacultyIds.length === 0) {
+      setSelectedFacultyIds(dbFacultyList.map((f: any) => f.id));
+    }
+  }, [dbFacultyList]);
 
   useEffect(() => {
     // Load previously published schedule if available
@@ -45,20 +61,38 @@ export const AITimetableGenerator = () => {
     }
   }, [semester]);
 
+  const toggleFacultySelection = (id: string) => {
+    setSelectedFacultyIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (selectedFacultyIds.length === 0) {
+      alert('Please select at least one active Faculty member from the database!');
+      return;
+    }
+
     setIsGenerating(true);
     setPublishedSuccess(false);
 
     const subjects = subjectsText.split(',').map((s) => s.trim()).filter(Boolean);
-    const facultyList = facultyText.split(',').map((s) => s.trim()).filter(Boolean);
     const rooms = roomsText.split(',').map((s) => s.trim()).filter(Boolean);
+
+    const activeFacultyObjects = dbFacultyList
+      .filter((f: any) => selectedFacultyIds.includes(f.id))
+      .map((f: any) => ({
+        id: f.id,
+        name: `${f.firstName} ${f.lastName}`.trim(),
+      }));
 
     try {
       const generated = await aiService.generateTimetable({
         semester,
         subjects,
-        facultyList,
+        facultyList: activeFacultyObjects.map((f: any) => f.name),
+        facultyObjects: activeFacultyObjects,
         rooms,
       });
       setSchedule(generated);
@@ -159,16 +193,44 @@ export const AITimetableGenerator = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-extrabold uppercase tracking-wider text-stone-700 dark:text-stone-300 mb-1.5">
-              Assigned Faculty List
-            </label>
-            <input
-              type="text"
-              value={facultyText}
-              onChange={(e) => setFacultyText(e.target.value)}
-              placeholder="Comma separated faculty names"
-              className="w-full rounded-2xl border border-amber-200 bg-amber-50/40 px-4 py-2.5 text-xs font-bold text-stone-900 focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-white"
-            />
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-stone-700 dark:text-stone-300">
+                Assigned Faculty Members (Enforced Database Records) <span className="text-rose-500 font-bold">*</span>
+              </label>
+              <span className="text-[10px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-900">
+                🔒 Valid DB Foreign Keys Only
+              </span>
+            </div>
+
+            {loadingFaculty ? (
+              <div className="p-3 text-xs text-stone-500 font-bold animate-pulse">Loading active Faculty database records...</div>
+            ) : dbFacultyList.length === 0 ? (
+              <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 dark:bg-rose-950/60 dark:border-rose-900 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                <span>No registered Faculty members found in database! Please register faculty members first.</span>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2.5 p-3 rounded-2xl border border-amber-200 bg-amber-50/30 dark:border-stone-700 dark:bg-stone-800/40">
+                {dbFacultyList.map((faculty: any) => {
+                  const isSelected = selectedFacultyIds.includes(faculty.id);
+                  return (
+                    <button
+                      key={faculty.id}
+                      type="button"
+                      onClick={() => toggleFacultySelection(faculty.id)}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white border-orange-500 shadow-md'
+                          : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-300 border-stone-200 dark:border-stone-700 hover:bg-amber-50'
+                      }`}
+                    >
+                      <UserCheck className={`h-3.5 w-3.5 ${isSelected ? 'text-white' : 'text-stone-400'}`} />
+                      <span>{faculty.firstName} {faculty.lastName} ({faculty.employeeId})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end pt-2">

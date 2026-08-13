@@ -135,6 +135,7 @@ export const createStudent = async (data: CreateStudentInput) => {
       enrollmentDate: data.enrollmentDate || new Date().toISOString().split('T')[0],
       status: data.status || 'ACTIVE',
       departmentId: deptId,
+      semester: data.semester || '1',
     },
     include: { department: true },
   });

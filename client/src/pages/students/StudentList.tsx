@@ -9,6 +9,7 @@ import { IndividualAttendanceModal, type IndividualStudentData } from '../../com
 export const StudentList = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
+  const [semesterFilter, setSemesterFilter] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const [attendanceStudent, setAttendanceStudent] = useState<IndividualStudentData | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -19,7 +20,10 @@ export const StudentList = () => {
     queryFn: () => studentService.getAll({ page: 1, limit: 50, search: searchTerm }),
   });
 
-  const students = data?.data || [];
+  const rawStudents = data?.data || [];
+  const students = semesterFilter
+    ? rawStudents.filter((s: any) => String(s.semester || '1') === semesterFilter)
+    : rawStudents;
 
   // Update Status Mutation
   const updateStatusMutation = useMutation({
@@ -93,18 +97,35 @@ export const StudentList = () => {
 
       <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 transition-colors duration-200">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-          <div className="relative w-full max-w-sm">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Filter students by name or ID..."
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-            />
+          <div className="flex flex-wrap items-center gap-3 w-full max-w-xl">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Filter students by name or ID..."
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-2 text-xs text-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </div>
+            <select
+              value={semesterFilter}
+              onChange={(e) => setSemesterFilter(e.target.value)}
+              className="rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 cursor-pointer"
+            >
+              <option value="">All Semesters</option>
+              <option value="1">Semester 1</option>
+              <option value="2">Semester 2</option>
+              <option value="3">Semester 3</option>
+              <option value="4">Semester 4</option>
+              <option value="5">Semester 5</option>
+              <option value="6">Semester 6</option>
+              <option value="7">Semester 7</option>
+              <option value="8">Semester 8</option>
+            </select>
           </div>
-          <span className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400">
-            Total: {data?.total || students.length} Students
+          <span className="text-xs font-extrabold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+            Total: {students.length} Students
           </span>
         </div>
 
@@ -117,6 +138,7 @@ export const StudentList = () => {
                 <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 uppercase tracking-wider font-extrabold">
                   <th className="py-3 px-4">Student ID</th>
                   <th className="py-3 px-4">Name</th>
+                  <th className="py-3 px-4">Semester</th>
                   <th className="py-3 px-4">Department</th>
                   <th className="py-3 px-4">Contact</th>
                   <th className="py-3 px-4">Status</th>
@@ -131,6 +153,11 @@ export const StudentList = () => {
                     </td>
                     <td className="py-3.5 px-4 font-extrabold text-slate-900 dark:text-white">
                       {student.firstName} {student.lastName}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-black text-[11px] border border-indigo-200 dark:border-indigo-800">
+                        Sem {student.semester || '1'}
+                      </span>
                     </td>
                     <td className="py-3.5 px-4">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-indigo-300 font-bold border border-slate-200/60 dark:border-slate-700">

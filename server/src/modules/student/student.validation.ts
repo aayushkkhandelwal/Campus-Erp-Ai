@@ -14,6 +14,7 @@ export const createStudentSchema = z.object({
   enrollmentDate: z.string().optional(),
   status: z.string().optional(),
   departmentId: z.string(),
+  semester: z.string().optional(),
 });
 
 export const updateStudentSchema = createStudentSchema.partial();

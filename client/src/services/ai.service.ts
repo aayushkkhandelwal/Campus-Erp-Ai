@@ -24,6 +24,7 @@ export interface TimetableSlot {
   time: string;
   subject: string;
   faculty: string;
+  facultyId?: string;
   room: string;
   section: string;
 }
@@ -146,24 +147,30 @@ export const aiService = {
     semester: string;
     subjects: string[];
     facultyList: string[];
+    facultyObjects?: { id: string; name: string }[];
     rooms: string[];
   }): Promise<TimetableSlot[]> {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const times = ['09:00 - 10:00 AM', '10:00 - 11:00 AM', '11:00 - 12:00 PM', '02:00 - 03:00 PM'];
     const slots: TimetableSlot[] = [];
 
+    const facultyItems = params.facultyObjects && params.facultyObjects.length > 0
+      ? params.facultyObjects
+      : params.facultyList.map((f, idx) => ({ id: `fac-${idx}`, name: f }));
+
     let subjIdx = 0;
     for (const day of days) {
       for (let t = 0; t < times.length; t++) {
         const subject = params.subjects[subjIdx % params.subjects.length];
-        const faculty = params.facultyList[subjIdx % params.facultyList.length];
+        const facObj = facultyItems[subjIdx % facultyItems.length];
         const room = params.rooms[t % params.rooms.length];
 
         slots.push({
           day,
           time: times[t],
           subject,
-          faculty,
+          faculty: facObj.name,
+          facultyId: facObj.id,
           room,
           section: 'Section A',
         });
