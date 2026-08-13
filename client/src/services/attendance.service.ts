@@ -48,6 +48,9 @@ export const attendanceService = {
     batches[key] = records;
     saveStoredBatches(batches);
 
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('college_erp_attendance_updated'));
+
     try {
       await api.post('/attendance', {
         subject,

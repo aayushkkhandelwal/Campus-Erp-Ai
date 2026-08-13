@@ -41,6 +41,25 @@ export const StudentAttendance = () => {
 
   useEffect(() => {
     loadAttendance(selectedRollNo);
+
+    const interval = setInterval(() => {
+      loadAttendance(selectedRollNo);
+    }, 5000);
+
+    const handleUpdate = () => {
+      loadAttendance(selectedRollNo);
+    };
+
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    window.addEventListener('college_erp_attendance_updated', handleUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+      window.removeEventListener('college_erp_attendance_updated', handleUpdate);
+    };
   }, [selectedRollNo]);
 
   // Sample Daily Attendance History Log for Selected Student

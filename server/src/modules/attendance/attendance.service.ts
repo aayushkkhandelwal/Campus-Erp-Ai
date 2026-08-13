@@ -11,8 +11,19 @@ export const saveAttendanceBatch = async (
   subject: string,
   date: string,
   records: AttendanceRecordInput[],
-  markedBy?: string
+  markedBy?: string,
+  userRole?: string,
+  finalize: boolean = true
 ) => {
+  // Check if batch is already finalized
+  const existingBatch = await prisma.attendanceRecord.findFirst({
+    where: { subject, date, isFinalized: true },
+  });
+
+  if (existingBatch && userRole !== 'ADMIN') {
+    throw new Error('Attendance for this class session is finalized and locked. Only an Administrator can modify locked attendance.');
+  }
+
   const results = await Promise.all(
     records.map((r) =>
       prisma.attendanceRecord.upsert({
@@ -27,6 +38,7 @@ export const saveAttendanceBatch = async (
           studentName: r.studentName,
           present: r.present,
           markedBy,
+          isFinalized: finalize,
         },
         create: {
           subject,
@@ -36,6 +48,7 @@ export const saveAttendanceBatch = async (
           studentName: r.studentName,
           present: r.present,
           markedBy,
+          isFinalized: finalize,
         },
       })
     )

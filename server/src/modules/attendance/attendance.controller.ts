@@ -9,10 +9,11 @@ export const saveBatch = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ success: false, message: 'Subject, date, and records array are required' });
     }
 
-    const saved = await saveAttendanceBatch(subject, date, records, markedBy);
+    const userRole = req.user?.role;
+    const saved = await saveAttendanceBatch(subject, date, records, markedBy, userRole);
     res.status(200).json({ success: true, data: saved, message: 'Attendance saved successfully' });
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message || 'Failed to save attendance' });
+    res.status(403).json({ success: false, message: error.message || 'Failed to save attendance' });
   }
 };
 

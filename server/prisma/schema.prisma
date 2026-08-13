@@ -159,6 +159,7 @@ model AttendanceRecord {
   studentName   String
   present       Boolean  @default(true)
   markedBy      String?
+  isFinalized   Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
