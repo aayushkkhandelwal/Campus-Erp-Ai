@@ -14,7 +14,7 @@ import {
   Menu
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { ThemeToggleButton } from '../ui/ThemeToggleButton';
+import { ThemeSliderSwitch } from '../ui/ThemeSliderSwitch';
 
 interface NavbarProps {
   onToggleSidebar?: () => void;
@@ -135,8 +135,8 @@ export const Navbar = ({ onToggleSidebar, sidebarOpen }: NavbarProps) => {
 
       {/* Right Controls */}
       <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3">
-        {/* Single Dark / Light Mode Toggle Button */}
-        <ThemeToggleButton />
+        {/* Dark / Light Mode Slider Switch */}
+        <ThemeSliderSwitch size="sm" />
 
         {/* Notifications Popover */}
         <div className="relative" ref={notifRef}>

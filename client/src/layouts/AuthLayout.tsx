@@ -1,6 +1,6 @@
 import { Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ThemeToggleButton } from '../components/ui/ThemeToggleButton';
+import { ThemeSliderSwitch } from '../components/ui/ThemeSliderSwitch';
 
 export const AuthLayout = () => {
   const { isAuthenticated, loading } = useAuth();
@@ -20,7 +20,7 @@ export const AuthLayout = () => {
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 px-4 transition-colors duration-200">
       <div className="absolute top-4 right-4 z-50">
-        <ThemeToggleButton />
+        <ThemeSliderSwitch size="sm" />
       </div>
       <div className="w-full max-w-md my-8">
         <Outlet />
