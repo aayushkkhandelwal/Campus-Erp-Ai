@@ -9,6 +9,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<LoginResult>;
   verify2FA: (userId: string, code: string) => Promise<void>;
   register: (data: { fullName: string; email: string; password: string; role?: 'ADMIN' | 'FACULTY' | 'STUDENT' }) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
 }
@@ -68,6 +69,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(result.user);
   };
 
+  const changePassword = async (currentPassword: string, newPassword: string) => {
+    await authService.changePassword(currentPassword, newPassword);
+    if (user) {
+      const updatedUser = { ...user, mustChangePassword: false };
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    }
+  };
+
   const logout = async () => {
     await authService.logout();
     setToken(null);
@@ -83,6 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         verify2FA,
         register,
+        changePassword,
         logout,
         isAuthenticated: !!user,
       }}
@@ -102,6 +113,7 @@ export const useAuth = () => {
       login: async () => ({}),
       verify2FA: async () => {},
       register: async () => {},
+      changePassword: async () => {},
       logout: async () => {},
       isAuthenticated: false,
     };

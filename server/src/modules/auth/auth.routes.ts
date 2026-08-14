@@ -6,6 +6,7 @@ import {
   verify2FA,
   forgotPassword,
   resetPassword,
+  changePassword,
   toggle2FA,
   logout,
 } from './auth.controller';
@@ -18,6 +19,7 @@ import {
   verify2FASchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  changePasswordSchema,
 } from './auth.validation';
 
 const router = Router();
@@ -27,6 +29,7 @@ router.post('/login', authLimiter, validateRequest(loginSchema), login);
 router.post('/verify-2fa', authLimiter, validateRequest(verify2FASchema), verify2FA);
 router.post('/forgot-password', otpLimiter, validateRequest(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password', authLimiter, validateRequest(resetPasswordSchema), resetPassword);
+router.post('/change-password', authenticate, authLimiter, validateRequest(changePasswordSchema), changePassword);
 router.post('/toggle-2fa', authenticate, toggle2FA);
 router.post('/logout', logout);
 router.get('/profile', authenticate, profile);

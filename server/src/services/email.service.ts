@@ -154,6 +154,52 @@ College ERP Administration System`;
 
     return this.sendEmail(email, subject, bodyText, htmlContent);
   }
+
+  async sendWelcomePasswordEmail(
+    to: string,
+    fullName: string,
+    tempPassword: string,
+    role: string = 'USER'
+  ): Promise<boolean> {
+    const subject = `[College ERP] Your Temporary Account Password`;
+
+    const bodyText = `Hello ${fullName},
+
+Your account has been set up in the College ERP System.
+
+Your temporary account password is: ${tempPassword}
+
+IMPORTANT: For security reasons, you are required to change your password immediately upon your first login.
+
+Best regards,
+College ERP Administration System`;
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <h2 style="color: #4f46e5; margin: 0;">College ERP System</h2>
+          <p style="color: #64748b; font-size: 13px;">Initial Account Credentials (${role})</p>
+        </div>
+        <div style="padding: 16px; background-color: #f8fafc; border-radius: 12px; margin-bottom: 20px;">
+          <p style="margin: 0 0 8px 0; color: #334155; font-size: 14px;">Hello <strong>${fullName}</strong>,</p>
+          <p style="margin: 0 0 16px 0; color: #475569; font-size: 14px;">Your account has been set up in the system. Below is your temporary login password:</p>
+          <div style="background-color: #e0e7ff; border: 1px dashed #6366f1; padding: 14px; border-radius: 8px; text-align: center; font-size: 22px; font-weight: bold; letter-spacing: 2px; color: #3730a3; font-family: monospace;">
+            ${tempPassword}
+          </div>
+        </div>
+        <div style="background-color: #fffbebfb; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 4px; margin-bottom: 20px;">
+          <p style="margin: 0; font-size: 13px; color: #92400e;">
+            <strong>⚠️ Security Notice:</strong> You are required to change your password immediately upon your first login.
+          </p>
+        </div>
+        <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">
+          If you have questions, please contact your ERP system administrator.
+        </p>
+      </div>
+    `;
+
+    return this.sendEmail(to, subject, bodyText, htmlContent);
+  }
 }
 
 export const emailService = new EmailService();

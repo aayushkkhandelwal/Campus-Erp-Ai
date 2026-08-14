@@ -63,6 +63,18 @@ export const authService = {
     }
   },
 
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    try {
+      const response = await api.post('/auth/change-password', { currentPassword, newPassword });
+      return response.data;
+    } catch (error: any) {
+      if (error.response) {
+        throw new Error(error.response.data?.message || 'Failed to change password');
+      }
+      throw error;
+    }
+  },
+
   async register(data: RegisterData): Promise<AuthResponse> {
     try {
       const response = await api.post('/auth/register', data);

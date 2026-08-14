@@ -6,6 +6,7 @@ import {
   verify2FA as verify2FAService,
   forgotPassword as forgotPasswordService,
   resetPassword as resetPasswordService,
+  changePassword as changePasswordService,
   toggle2FA as toggle2FAService,
   logoutUser,
   getUserById,
@@ -147,5 +148,25 @@ export const profile = async (req: AuthRequest, res: Response) => {
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const changePassword = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const ipAddress = req.ip || req.socket.remoteAddress;
+    const result = await changePasswordService(req.user.id, req.body, ipAddress);
+
+    res.status(200).json({
+      success: true,
+      message: result.message,
+    });
+  } catch (error: any) {
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to change password',
+    });
   }
 };

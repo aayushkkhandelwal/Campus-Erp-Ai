@@ -7,6 +7,7 @@ import type {
   Verify2FAInput,
   ForgotPasswordInput,
   ResetPasswordInput,
+  ChangePasswordInput,
 } from './auth.validation';
 import { generateAndSendOtp, verifyOtpCode } from './otp.service';
 import { createSession, revokeUserSessions, clearSessionCookie } from './session.service';
@@ -32,7 +33,8 @@ export const registerUser = async (data: RegisterInput, ipAddress?: string) => {
       phone: data.phone || null,
       role: data.role || 'STUDENT',
       status: 'ACTIVE',
-    },
+      mustChangePassword: true,
+    } as any,
   });
 
   await createAuditLog({
@@ -138,20 +140,11 @@ export const loginUser = async (data: LoginInput, res: Response, ipAddress?: str
   }
 
   let isPasswordValid = false;
-  if (user.password === data.password) {
-    isPasswordValid = true;
-    const newHash = await bcrypt.hash(data.password, 10);
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { password: newHash },
-    });
-  } else {
-    try {
-      isPasswordValid = await bcrypt.compare(data.password, user.password);
-    } catch (e: any) {
-      console.log('bcrypt.compare error:', e.message);
-      isPasswordValid = false;
-    }
+  try {
+    isPasswordValid = await bcrypt.compare(data.password, user.password);
+  } catch (e: any) {
+    console.error('bcrypt.compare error:', e.message);
+    isPasswordValid = false;
   }
 
 
@@ -205,6 +198,7 @@ export const loginUser = async (data: LoginInput, res: Response, ipAddress?: str
       status: user.status,
       phone: user.phone,
       twoFactorEnabled: user.twoFactorEnabled,
+      mustChangePassword: !!(user as any).mustChangePassword,
       createdAt: user.createdAt,
     },
   };
@@ -252,6 +246,7 @@ export const verify2FA = async (data: Verify2FAInput, res: Response, ipAddress?:
       status: user.status,
       phone: user.phone,
       twoFactorEnabled: user.twoFactorEnabled,
+      mustChangePassword: !!(user as any).mustChangePassword,
       createdAt: user.createdAt,
     },
   };
@@ -354,6 +349,41 @@ export const getUserById = async (id: string) => {
     phone: user.phone,
     phoneVerified: user.phoneVerified,
     twoFactorEnabled: user.twoFactorEnabled,
+    mustChangePassword: !!(user as any).mustChangePassword,
     createdAt: user.createdAt,
   };
+};
+
+export const changePassword = async (userId: string, data: ChangePasswordInput, ipAddress?: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user || user.status !== 'ACTIVE') {
+    throw new Error('User account is invalid or inactive');
+  }
+
+  const isCurrentValid = await bcrypt.compare(data.currentPassword, user.password);
+  if (!isCurrentValid) {
+    throw new Error('Current password is incorrect');
+  }
+
+  const newHash = await bcrypt.hash(data.newPassword, 10);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password: newHash,
+      mustChangePassword: false,
+    } as any,
+  });
+
+  await createAuditLog({
+    userId: user.id,
+    userRole: user.role,
+    action: 'PASSWORD_CHANGE_SUCCESS',
+    resource: 'auth',
+    ipAddress,
+  });
+
+  return { success: true, message: 'Password changed successfully' };
 };

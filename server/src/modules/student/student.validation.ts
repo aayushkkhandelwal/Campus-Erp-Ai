@@ -13,7 +13,7 @@ export const createStudentSchema = z.object({
   phone: z.string().optional(),
   enrollmentDate: z.string().optional(),
   status: z.string().optional(),
-  departmentId: z.string(),
+  departmentId: z.string().optional(),
   semester: z.string().optional(),
 });
 

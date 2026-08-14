@@ -9,6 +9,7 @@ export interface User {
   status?: string;
   phoneVerified?: boolean;
   twoFactorEnabled?: boolean;
+  mustChangePassword?: boolean;
   createdAt: string;
   updatedAt?: string;
 }

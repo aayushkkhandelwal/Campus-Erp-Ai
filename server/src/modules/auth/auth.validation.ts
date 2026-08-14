@@ -32,9 +32,15 @@ export const updatePhoneSchema = z.object({
   phone: z.string().min(5, 'Valid phone number is required'),
 });
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(6, 'New password must be at least 6 characters'),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type Verify2FAInput = z.infer<typeof verify2FASchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type UpdatePhoneInput = z.infer<typeof updatePhoneSchema>;
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;

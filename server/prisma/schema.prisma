@@ -16,6 +16,7 @@ model User {
   password         String
   role             String            @default("STUDENT") // ADMIN, FACULTY, STUDENT
   status           String            @default("ACTIVE")  // PENDING, ACTIVE, SUSPENDED, DISABLED
+  mustChangePassword Boolean         @default(true)
   phoneVerified    Boolean           @default(false)
   twoFactorEnabled Boolean           @default(false)
   otps             OTPVerification[]

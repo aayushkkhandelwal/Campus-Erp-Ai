@@ -1,6 +1,8 @@
 import bcrypt from 'bcrypt';
 import prisma from '../../prisma/client';
 import type { CreateStudentInput, UpdateStudentInput } from './student.validation';
+import { generateDefaultPassword } from '../../utils/password.util';
+import { emailService } from '../../services/email.service';
 
 /**
  * Auto-generates an unchangeable sequential Student ID / Roll Number.
@@ -108,19 +110,34 @@ export const createStudent = async (data: CreateStudentInput) => {
     throw new Error(`A student account with email '${data.email}' already exists in the system (Roll No: ${existingStudent.studentId}).`);
   }
 
-  const hashedPassword = await bcrypt.hash('student123', 10);
-  await prisma.user.upsert({
+  const existingUser = await prisma.user.findUnique({
     where: { email: data.email },
-    update: {
-      fullName: `${firstName} ${lastName}`.trim(),
-    },
-    create: {
-      fullName: `${firstName} ${lastName}`.trim(),
-      email: data.email,
-      password: hashedPassword,
-      role: 'STUDENT',
-    },
   });
+
+  let tempPassword = '';
+  let isNewUser = false;
+
+  if (!existingUser) {
+    isNewUser = true;
+    tempPassword = generateDefaultPassword(firstName);
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    await prisma.user.create({
+      data: {
+        fullName: `${firstName} ${lastName}`.trim(),
+        email: data.email,
+        password: hashedPassword,
+        role: 'STUDENT',
+        mustChangePassword: true,
+      } as any,
+    });
+  } else {
+    await prisma.user.update({
+      where: { email: data.email },
+      data: {
+        fullName: `${firstName} ${lastName}`.trim(),
+      },
+    });
+  }
 
   const newStudent = await prisma.student.create({
     data: {
@@ -177,6 +194,20 @@ export const createStudent = async (data: CreateStudentInput) => {
       },
     }).catch(() => {});
   } catch {}
+
+  // ONLY dispatch initial credentials email if a brand new user account was created
+  if (isNewUser && tempPassword) {
+    try {
+      await emailService.sendWelcomePasswordEmail(
+        data.email,
+        `${firstName} ${lastName}`.trim(),
+        tempPassword,
+        'STUDENT'
+      );
+    } catch (err: any) {
+      console.error(`⚠️ Failed to send welcome email to student ${data.email}:`, err.message || err);
+    }
+  }
 
   return newStudent;
 };

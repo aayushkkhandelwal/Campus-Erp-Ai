@@ -34,6 +34,8 @@ import { AIPerformanceAnalysis } from '../pages/faculty/AIPerformanceAnalysis';
 import { AIAssignmentChecker } from '../pages/faculty/AIAssignmentChecker';
 import { AIStudyAssistant } from '../pages/student/AIStudyAssistant';
 
+import { ChangePassword } from '../pages/auth/ChangePassword';
+
 export const router = createBrowserRouter([
   {
     path: '/',
@@ -43,6 +45,7 @@ export const router = createBrowserRouter([
       { path: 'login', element: <Login /> },
       { path: 'register', element: <Register /> },
       { path: 'forgot-password', element: <ForgotPassword /> },
+      { path: 'change-password', element: <ProtectedRoute><ChangePassword /></ProtectedRoute> },
     ],
   },
   {
