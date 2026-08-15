@@ -22,3 +22,7 @@ scratch/
 # Temporary test scripts
 server/test_login.js
 server/tmp-test-prisma.js
+
+# Local untracked script config files
+.local-recipients.json
+*.local-recipients.json
