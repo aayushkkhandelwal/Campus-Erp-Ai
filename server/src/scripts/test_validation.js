@@ -1,24 +1,24 @@
-import prisma from '../../prisma/client';
+const { PrismaClient } = require('@prisma/client');
+const dotenv = require('dotenv');
+const path = require('path');
 
-export interface CreateSlotInput {
-  day: string;
-  time: string;
-  subject: string;
-  faculty?: string;
-  room?: string;
-  facultyId?: string;
-  roomId?: string;
-  groupLabel?: string;
-  isPlaceholder?: boolean;
+dotenv.config({ path: path.join(__dirname, '../../.env') });
+
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: process.env.DATABASE_URL
+    }
+  }
+});
+
+// Helper function to normalize strings for matching
+function normalizeName(name) {
+  return name.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-// Normalize strings for matching
-const normalizeName = (name: string) => {
-  return name.replace(/\s+/g, ' ').trim().toLowerCase();
-};
-
 // Helper to parse time strings like "09:00 - 10:00 AM" into startTime/endTime (24h format)
-function parseTimeString(timeStr: string) {
+function parseTimeString(timeStr) {
   const match = timeStr.match(/^(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})\s*(AM|PM)$/i);
   if (!match) {
     throw new Error(`Invalid time format: "${timeStr}"`);
@@ -53,7 +53,7 @@ function parseTimeString(timeStr: string) {
     if (endHour === 12) end24Hour = 0;
   }
   
-  const pad = (num: number) => String(num).padStart(2, '0');
+  const pad = (num) => String(num).padStart(2, '0');
   
   return {
     startTime: `${pad(start24Hour)}:${startMin}`,
@@ -61,177 +61,8 @@ function parseTimeString(timeStr: string) {
   };
 }
 
-export const publishTimetable = async (semester: string, slots: CreateSlotInput[]) => {
-  // First delete existing slots for this semester
-  await prisma.timetableSlot.deleteMany({
-    where: { semester },
-  });
-
-  // Fetch all faculty and rooms
-  const faculties = await prisma.faculty.findMany();
-  const rooms = await prisma.room.findMany();
-
-  const createdSlots = [];
-  
-  // Extract all unique times to order periods chronologically
-  const uniqueTimes = Array.from(new Set(slots.map(s => {
-    try {
-      return parseTimeString(s.time).startTime;
-    } catch {
-      return '';
-    }
-  }).filter(Boolean))).sort();
-
-  const timeToOrder: Record<string, number> = {};
-  uniqueTimes.forEach((time, index) => {
-    timeToOrder[time] = index + 1;
-  });
-
-  for (const slot of slots) {
-    // 1. Resolve Faculty (Strict normalized match or ID)
-    let facultyId = slot.facultyId || null;
-    if (!facultyId && slot.faculty) {
-      const slotFacultyNormalized = normalizeName(slot.faculty);
-      const matchedFaculty = faculties.find(f => {
-        const fullName = normalizeName(`${f.firstName} ${f.lastName}`);
-        return fullName === slotFacultyNormalized;
-      });
-      facultyId = matchedFaculty ? matchedFaculty.id : null;
-    }
-
-    // 2. Resolve Room (Auto-create or ID)
-    let roomId = slot.roomId || null;
-    if (!roomId && slot.room) {
-      const roomName = slot.room.trim();
-      let roomRecord = rooms.find(r => r.name.toLowerCase() === roomName.toLowerCase());
-      if (!roomRecord) {
-        const isLab = roomName.toLowerCase().includes('lab');
-        roomRecord = await prisma.room.create({
-          data: {
-            name: roomName,
-            type: isLab ? 'LAB' : 'CLASSROOM',
-            capacity: isLab ? 30 : 60
-          }
-        });
-        rooms.push(roomRecord); // Add to local cache list
-      }
-      roomId = roomRecord.id;
-    }
-
-    // 3. Resolve Period (Auto-create if not exists)
-    let parsedTime;
-    let periodRecord;
-    try {
-      parsedTime = parseTimeString(slot.time);
-      const order = timeToOrder[parsedTime.startTime] || 1;
-      periodRecord = await prisma.period.upsert({
-        where: { order },
-        update: {},
-        create: {
-          name: `Period ${order}`,
-          order,
-          startTime: parsedTime.startTime,
-          endTime: parsedTime.endTime
-        }
-      });
-    } catch {
-      // Fallback
-    }
-
-    // Create slot record with new relation keys
-    const newSlot = await prisma.timetableSlot.create({
-      data: {
-        semester,
-        day: slot.day,
-        subject: slot.subject,
-        status: 'PUBLISHED',
-        facultyId,
-        roomId,
-        periods: periodRecord ? { connect: { id: periodRecord.id } } : undefined
-      }
-    });
-    createdSlots.push(newSlot);
-  }
-
-  return createdSlots;
-};
-
-export const getTimetable = async (semester?: string) => {
-  const where: any = {};
-  if (semester) where.semester = semester;
-
-  const slots = await prisma.timetableSlot.findMany({
-    where,
-    include: {
-      facultyRelation: true,
-      roomRelation: true,
-      periods: true,
-    },
-    orderBy: [{ semester: 'asc' }, { day: 'asc' }],
-  });
-
-  return slots.map(slot => {
-    let timeStr = 'N/A';
-    if (slot.periods.length > 0) {
-      const p = slot.periods[0];
-      const convertTo12h = (time24: string) => {
-        const [hourStr, minStr] = time24.split(':');
-        const hour = parseInt(hourStr, 10);
-        const hour12 = hour % 12 === 0 ? 12 : hour % 12;
-        return `${String(hour12).padStart(2, '0')}:${minStr}`;
-      };
-      const start12 = convertTo12h(p.startTime);
-      const end12 = convertTo12h(p.endTime);
-      const endHour = parseInt(p.endTime.split(':')[0], 10);
-      const ampm = endHour >= 12 ? 'PM' : 'AM';
-      timeStr = `${start12} - ${end12} ${ampm}`;
-    }
-
-    return {
-      id: slot.id,
-      semester: slot.semester,
-      day: slot.day,
-      subject: slot.subject,
-      status: slot.status,
-      createdAt: slot.createdAt,
-      updatedAt: slot.updatedAt,
-      groupLabel: slot.groupLabel,
-      isPlaceholder: slot.isPlaceholder,
-      facultyId: slot.facultyId,
-      roomId: slot.roomId,
-      
-      // Mapped legacy fields for frontend compatibility:
-      time: timeStr,
-      faculty: slot.facultyRelation ? `${slot.facultyRelation.firstName} ${slot.facultyRelation.lastName}`.replace(/\s+/g, ' ').trim() : 'N/A',
-      room: slot.roomRelation ? slot.roomRelation.name : 'N/A'
-    };
-  });
-};
-
-export interface ResolvedSlot {
-  index: number;
-  semester: string;
-  day: string;
-  time: string;
-  subject: string;
-  groupLabel: string | null;
-  isPlaceholder: boolean;
-  facultyId: string | null;
-  facultyName: string;
-  roomId: string | null;
-  roomName: string;
-  periodIds: string[];
-  periodNames: string[];
-}
-
-export interface ConflictDetail {
-  type: "FACULTY_CLASH" | "ROOM_CLASH" | "STUDENT_CLASH";
-  message: string;
-  slotA: ResolvedSlot;
-  slotB: any;
-}
-
-export const validateTimetable = async (proposedSemester: string, proposedSlots: CreateSlotInput[]): Promise<ConflictDetail[]> => {
+// Core Conflict Detection Logic
+async function validateTimetable(proposedSemester, proposedSlots) {
   const faculties = await prisma.faculty.findMany();
   const rooms = await prisma.room.findMany();
   const periods = await prisma.period.findMany();
@@ -248,7 +79,7 @@ export const validateTimetable = async (proposedSemester: string, proposedSlots:
     }
   });
 
-  const resolvedSlots: ResolvedSlot[] = [];
+  const resolvedSlots = [];
 
   for (let i = 0; i < proposedSlots.length; i++) {
     const s = proposedSlots[i];
@@ -292,8 +123,8 @@ export const validateTimetable = async (proposedSemester: string, proposedSlots:
     }
 
     // Resolve Period
-    let periodIds: string[] = [];
-    let periodNames: string[] = [];
+    let periodIds = [];
+    let periodNames = [];
     try {
       const parsedTime = parseTimeString(s.time);
       const matchedPeriod = periods.find(p => p.startTime === parsedTime.startTime && p.endTime === parsedTime.endTime);
@@ -322,8 +153,8 @@ export const validateTimetable = async (proposedSemester: string, proposedSlots:
     });
   }
 
-  const conflicts: ConflictDetail[] = [];
-  const hasOverlap = (arr1: string[], arr2: string[]) => arr1.some(id => arr2.includes(id));
+  const conflicts = [];
+  const hasOverlap = (arr1, arr2) => arr1.some(id => arr2.includes(id));
 
   // Loop through each resolved proposed slot
   for (let i = 0; i < resolvedSlots.length; i++) {
@@ -385,7 +216,6 @@ export const validateTimetable = async (proposedSemester: string, proposedSlots:
 
         // C. Student/Group Clash (Internal to proposed batch)
         if (slotA.semester === slotB.semester) {
-          // If BOTH are placeholder electives, they are allowed to run concurrently!
           if (!(slotA.isPlaceholder && slotB.isPlaceholder)) {
             if (slotA.groupLabel === null || slotB.groupLabel === null || slotA.groupLabel === slotB.groupLabel) {
               conflicts.push({
@@ -402,4 +232,151 @@ export const validateTimetable = async (proposedSemester: string, proposedSlots:
   }
 
   return conflicts;
-};
+}
+
+async function runTests() {
+  console.log("🧪 STARTING TIMETABLE CONFLICT RESOLUTION TEST SUITE...\n");
+
+  // ==============================================================
+  // Test Case 1: Proposed Semester 3 slot for Robert Langdon on Monday, 10:00 - 11:00 AM
+  // This should clash with Slot 4 (Robert Langdon is already teaching Semester 5 at Room 104).
+  // ==============================================================
+  console.log("--------------------------------------------------");
+  console.log("Test Case 1: Propose conflicting slot for Robert Langdon (Sem 3 vs Sem 5)");
+  const proposedBatch1 = [
+    {
+      day: "Monday",
+      time: "10:00 - 11:00 AM",
+      subject: "Data Structures",
+      faculty: "Robert Langdon",
+      room: "Room 104"
+    }
+  ];
+  const conflicts1 = await validateTimetable("Semester 3", proposedBatch1);
+  console.log(`Conflicts detected: ${conflicts1.length}`);
+  conflicts1.forEach(c => console.log(`  💥 [${c.type}] ${c.message}`));
+
+  // ==============================================================
+  // Test Case 2: Propose legitimate split group parallel session for Semester 5
+  // Group 1: Ayuuush Khan, Lab 1, DBMS
+  // Group 2: Robert Langdon, Lab 3, AI
+  // This should produce NO conflicts since they use different rooms and teachers.
+  // ==============================================================
+  console.log("\n--------------------------------------------------");
+  console.log("Test Case 2: Propose legitimate split group parallel session (Sem 5)");
+  const proposedBatch2 = [
+    {
+      day: "Wednesday",
+      time: "11:00 - 12:00 PM",
+      subject: "DBMS Lab",
+      faculty: "Ayuuush  Khan",
+      room: "Lab 1",
+      groupLabel: "Group 1"
+    },
+    {
+      day: "Wednesday",
+      time: "11:00 - 12:00 PM",
+      subject: "AI Lab",
+      faculty: "Robert Langdon",
+      room: "Lab 3",
+      groupLabel: "Group 2"
+    }
+  ];
+  const conflicts2 = await validateTimetable("Semester 5", proposedBatch2);
+  console.log(`Conflicts detected: ${conflicts2.length}`);
+  if (conflicts2.length === 0) {
+    console.log("  ✅ SUCCESS: No conflicts found for legitimate parallel split sessions!");
+  } else {
+    conflicts2.forEach(c => console.log(`  💥 [${c.type}] ${c.message}`));
+  }
+
+  // ==============================================================
+  // Test Case 3: Propose conflicting split group parallel session (same group label or double-booked room/teacher)
+  // Group 1: Ayuuush Khan, Lab 1, DBMS
+  // Group 1: Robert Langdon, Lab 1, AI  <-- clashes on room (Lab 1) and student (both Group 1)
+  // ==============================================================
+  console.log("\n--------------------------------------------------");
+  console.log("Test Case 3: Propose conflicting split group session (Same group and room)");
+  const proposedBatch3 = [
+    {
+      day: "Wednesday",
+      time: "11:00 - 12:00 PM",
+      subject: "DBMS Lab",
+      faculty: "Ayuuush  Khan",
+      room: "Lab 1",
+      groupLabel: "Group 1"
+    },
+    {
+      day: "Wednesday",
+      time: "11:00 - 12:00 PM",
+      subject: "AI Lab",
+      faculty: "Robert Langdon",
+      room: "Lab 1", // same room!
+      groupLabel: "Group 1" // same group!
+    }
+  ];
+  const conflicts3 = await validateTimetable("Semester 5", proposedBatch3);
+  console.log(`Conflicts detected: ${conflicts3.length}`);
+  conflicts3.forEach(c => console.log(`  💥 [${c.type}] ${c.message}`));
+
+  // ==============================================================
+  // Test Case 4: Propose two placeholder electives (isPlaceholder = true)
+  // Open Elective 1 and Open Elective 2, Wednesday, 11:00 - 12:00 PM
+  // These are electives, so they are allowed to run concurrently in the same semester.
+  // Should produce NO conflicts.
+  // ==============================================================
+  console.log("\n--------------------------------------------------");
+  console.log("Test Case 4: Propose two placeholder electives at the same slot (Sem 5)");
+  const proposedBatch4 = [
+    {
+      day: "Wednesday",
+      time: "11:00 - 12:00 PM",
+      subject: "Open Elective - Biotech",
+      isPlaceholder: true,
+      faculty: null,
+      room: null
+    },
+    {
+      day: "Wednesday",
+      time: "11:00 - 12:00 PM",
+      subject: "Open Elective - MBA",
+      isPlaceholder: true,
+      faculty: null,
+      room: null
+    }
+  ];
+  const conflicts4 = await validateTimetable("Semester 5", proposedBatch4);
+  console.log(`Conflicts detected: ${conflicts4.length}`);
+  if (conflicts4.length === 0) {
+    console.log("  ✅ SUCCESS: No conflicts found for parallel placeholder electives!");
+  } else {
+    conflicts4.forEach(c => console.log(`  💥 [${c.type}] ${c.message}`));
+  }
+
+  // ==============================================================
+  // Test Case 5: Propose slot with direct IDs (facultyId, roomId)
+  // We specify facultyId: "cmsqdbvom0006gt8pj9ftnl0c" (Robert Langdon) on Monday, 10:00 - 11:00 AM in roomId "cmt4aovbf0006zjer9y15nbue" (Room 104)
+  // Should successfully find clash with Slot 4.
+  // ==============================================================
+  console.log("\n--------------------------------------------------");
+  console.log("Test Case 5: Propose slot with direct IDs (Sem 3 vs Sem 5 DB slot)");
+  const proposedBatch5 = [
+    {
+      day: "Monday",
+      time: "10:00 - 11:00 AM",
+      subject: "Data Structures",
+      facultyId: "cmsqdbvom0006gt8pj9ftnl0c",
+      roomId: "cmt4aovbf0006zjer9y15nbue"
+    }
+  ];
+  const conflicts5 = await validateTimetable("Semester 3", proposedBatch5);
+  console.log(`Conflicts detected: ${conflicts5.length}`);
+  conflicts5.forEach(c => console.log(`  💥 [${c.type}] ${c.message}`));
+  
+  console.log("\n--------------------------------------------------");
+  console.log("🏁 TEST SUITE RUN COMPLETED.");
+}
+
+runTests()
+  .catch(e => console.error("Test run crashed:", e))
+  .finally(() => prisma.$disconnect());

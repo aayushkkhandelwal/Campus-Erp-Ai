@@ -139,18 +139,20 @@ model Subject {
 }
 
 model TimetableSlot {
-  id         String   @id @default(cuid())
-  semester   String
-  day        String
-  time       String
-  subject    String
-  faculty    String?  // Deprecated string column kept temporarily for backward compatibility
-  facultyId  String
-  facultyRel Faculty  @relation(fields: [facultyId], references: [id], onDelete: Cascade)
-  room       String
-  status     String   @default("PUBLISHED")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id              String   @id @default(cuid())
+  semester        String
+  day             String
+  subject         String
+  status          String   @default("PUBLISHED")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  groupLabel      String?
+  isPlaceholder   Boolean  @default(false)
+  facultyId       String?
+  facultyRelation Faculty? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  roomId          String?
+  roomRelation    Room?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  periods         Period[]
 }
 
 model AttendanceRecord {
@@ -219,4 +221,25 @@ model Notice {
   postedBy   String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model Room {
+  id             String          @id @default(cuid())
+  name           String          @unique
+  type           String          @default("CLASSROOM")
+  capacity       Int?
+  timetableSlots TimetableSlot[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Period {
+  id             String          @id @default(cuid())
+  name           String
+  order          Int             @unique
+  startTime      String
+  endTime        String
+  timetableSlots TimetableSlot[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 }

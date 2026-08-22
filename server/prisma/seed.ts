@@ -3,61 +3,43 @@ import bcrypt from 'bcrypt';
 import prisma from '../src/prisma/client';
 
 async function main() {
-  console.log('🌱 Seeding production-ready single-college ERP database...');
+  console.log('🌱 Seeding single-college ERP database...');
 
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'Admin#Secure2026!ERP';
-  const facultyPassword = process.env.SEED_FACULTY_PASSWORD || 'Faculty#Secure2026!ERP';
-  const studentPassword = process.env.SEED_STUDENT_PASSWORD || 'Student#Secure2026!ERP';
-
-  const hashedAdminPass = await bcrypt.hash(adminPassword, 10);
-  const hashedFacultyPass = await bcrypt.hash(facultyPassword, 10);
-  const hashedStudentPass = await bcrypt.hash(studentPassword, 10);
+  const hashedPassword = await bcrypt.hash('A@9xK#2$8pL!qW5v', 10);
 
   // 1. Seed Single College Users
   const adminUser = await prisma.user.upsert({
     where: { email: 'admin@college.edu' },
-    update: { role: 'ADMIN', fullName: 'System Administrator', status: 'ACTIVE', phone: '+1 555-0100' },
+    update: { role: 'ADMIN', fullName: 'System Administrator' },
     create: {
       fullName: 'System Administrator',
       email: 'admin@college.edu',
-      password: hashedAdminPass,
+      password: hashedPassword,
       role: 'ADMIN',
-      status: 'ACTIVE',
-      phone: '+1 555-0100',
-      phoneVerified: true,
-      twoFactorEnabled: false,
     },
   });
   console.log('  ✅ Admin user created:', adminUser.email);
 
   const facultyUser = await prisma.user.upsert({
     where: { email: 'faculty@college.edu' },
-    update: { role: 'FACULTY', fullName: 'Dr. Robert Langdon', status: 'ACTIVE', phone: '+1 555-0199' },
+    update: { role: 'FACULTY', fullName: 'Dr. Robert Langdon' },
     create: {
       fullName: 'Dr. Robert Langdon',
       email: 'faculty@college.edu',
-      password: hashedFacultyPass,
+      password: hashedPassword,
       role: 'FACULTY',
-      status: 'ACTIVE',
-      phone: '+1 555-0199',
-      phoneVerified: true,
-      twoFactorEnabled: false,
     },
   });
   console.log('  ✅ Faculty user created:', facultyUser.email);
 
   const studentUser = await prisma.user.upsert({
     where: { email: 'student@college.edu' },
-    update: { role: 'STUDENT', fullName: 'Emma Watson', status: 'ACTIVE', phone: '+1 555-0123' },
+    update: { role: 'STUDENT', fullName: 'Emma Watson' },
     create: {
       fullName: 'Emma Watson',
       email: 'student@college.edu',
-      password: hashedStudentPass,
+      password: hashedPassword,
       role: 'STUDENT',
-      status: 'ACTIVE',
-      phone: '+1 555-0123',
-      phoneVerified: true,
-      twoFactorEnabled: false,
     },
   });
   console.log('  ✅ Student user created:', studentUser.email);

@@ -27,6 +27,9 @@ const saveStoredTimetable = (data: PublishedTimetableData) => {
 
 export const timetableService = {
   async publish(semester: string, slots: TimetableSlot[]) {
+    // 1. Send publish request to backend. Let errors propagate to catch block in component
+    const response = await api.post('/timetable/publish', { semester, slots });
+
     const publishedData: PublishedTimetableData = {
       semester,
       slots,
@@ -34,14 +37,12 @@ export const timetableService = {
     };
 
     saveStoredTimetable(publishedData);
+    return { success: true, data: response.data };
+  },
 
-    try {
-      await api.post('/timetable/publish', { semester, slots });
-    } catch {
-      // fallback
-    }
-
-    return { success: true, data: publishedData };
+  async validate(semester: string, slots: TimetableSlot[]) {
+    const response = await api.post('/timetable/validate', { semester, slots });
+    return response.data;
   },
 
   async getPublished(semester?: string): Promise<TimetableSlot[]> {
