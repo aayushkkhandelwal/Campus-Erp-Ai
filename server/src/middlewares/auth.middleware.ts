@@ -88,25 +88,6 @@ export const authenticate = async (
       });
     }
 
-    // 3. Mandatory Password Change Enforcement
-    if (req.user.mustChangePassword) {
-      const url = (req.originalUrl || req.url || '').split('?')[0].toLowerCase();
-      const method = req.method.toUpperCase();
-
-      // Explicitly allow ONLY the 3 intended auth endpoints
-      const isAllowed =
-        (method === 'POST' && (url === '/api/v1/auth/change-password' || url === '/api/auth/change-password')) ||
-        (method === 'POST' && (url === '/api/v1/auth/logout' || url === '/api/auth/logout')) ||
-        (method === 'GET' && (url === '/api/v1/auth/profile' || url === '/api/auth/profile'));
-
-      if (!isAllowed) {
-        return res.status(403).json({
-          success: false,
-          mustChangePassword: true,
-          message: 'Password change required before accessing other features.',
-        });
-      }
-    }
 
     return next();
   } catch (error) {

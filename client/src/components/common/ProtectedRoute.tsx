@@ -22,10 +22,6 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/login" replace />;
   }
 
-  if (user?.mustChangePassword && window.location.pathname !== '/change-password') {
-    return <Navigate to="/change-password" replace />;
-  }
-
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }

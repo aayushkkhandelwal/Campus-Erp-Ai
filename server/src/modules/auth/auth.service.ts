@@ -33,7 +33,6 @@ export const registerUser = async (data: RegisterInput, ipAddress?: string) => {
       phone: data.phone || null,
       role: data.role || 'STUDENT',
       status: 'ACTIVE',
-      mustChangePassword: true,
     } as any,
   });
 
