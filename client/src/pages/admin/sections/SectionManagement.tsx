@@ -25,11 +25,24 @@ export const SectionManagement = () => {
   });
 
   // Fetch departments
-  const { data: departmentsResponse } = useQuery({
+  const { data: departmentsResponse, refetch: refetchDepts } = useQuery({
     queryKey: ['departments-list'],
     queryFn: () => departmentService.getAll(),
   });
   const departments = departmentsResponse?.data || [];
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    const start = Date.now();
+    await Promise.all([refetchSections(), refetchDepts()]);
+    const elapsed = Date.now() - start;
+    const remaining = Math.max(0, 2000 - elapsed);
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, remaining);
+  };
 
   // Mutations
   const createMutation = useMutation({
@@ -140,11 +153,12 @@ export const SectionManagement = () => {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => refetchSections()}
-            className="inline-flex items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-xs font-bold text-stone-700 hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-xs font-bold text-stone-700 hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800 transition-colors cursor-pointer disabled:opacity-70"
           >
-            <RefreshCw className="h-4 w-4 text-emerald-600" />
-            Refresh
+            <RefreshCw className={`h-4 w-4 text-emerald-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
           </button>
 
           <RoleGuard allowedRoles={['ADMIN']}>

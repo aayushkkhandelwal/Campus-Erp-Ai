@@ -51,11 +51,14 @@ export const StudentList = () => {
 
   const handleRefresh = async () => {
     setIsSyncing(true);
+    const start = Date.now();
     localStorage.removeItem('college_erp_students');
     await refetch();
+    const elapsed = Date.now() - start;
+    const remaining = Math.max(0, 2000 - elapsed);
     setTimeout(() => {
       setIsSyncing(false);
-    }, 1000);
+    }, remaining);
   };
 
   return (

@@ -54,12 +54,15 @@ export const FacultyList = () => {
 
   const handleSyncDatabase = async () => {
     setIsSyncing(true);
+    const start = Date.now();
     localStorage.removeItem('college_erp_faculty');
     await queryClient.invalidateQueries({ queryKey: ['faculty-list'] });
     await queryClient.refetchQueries({ queryKey: ['faculty-list'] });
+    const elapsed = Date.now() - start;
+    const remaining = Math.max(0, 2000 - elapsed);
     setTimeout(() => {
       setIsSyncing(false);
-    }, 1000);
+    }, remaining);
   };
 
   return (

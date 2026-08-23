@@ -34,12 +34,15 @@ export const DepartmentList = () => {
 
   const handleSyncDatabase = async () => {
     setIsSyncing(true);
+    const start = Date.now();
     localStorage.removeItem('college_erp_departments');
     await queryClient.invalidateQueries({ queryKey: ['departments-list'] });
     await queryClient.refetchQueries({ queryKey: ['departments-list'] });
+    const elapsed = Date.now() - start;
+    const remaining = Math.max(0, 2000 - elapsed);
     setTimeout(() => {
       setIsSyncing(false);
-    }, 1000);
+    }, remaining);
   };
 
   return (
