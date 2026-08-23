@@ -99,7 +99,7 @@ export const AITimetableGenerator = () => {
   });
 
   const { data: facultyRes, isLoading: loadingFaculty } = useQuery({
-    queryKey: ['faculty-list-timetable'],
+    queryKey: ['faculty-list', 'timetable'],
     queryFn: () => facultyService.getAll({ limit: 100 }),
   });
   const dbFacultyList = facultyRes?.data || [];

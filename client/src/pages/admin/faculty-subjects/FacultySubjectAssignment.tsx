@@ -23,14 +23,14 @@ export const FacultySubjectAssignment = () => {
   });
 
   // Fetch subjects
-  const { data: subjects = [] } = useQuery({
+  const { data: subjects = [], refetch: refetchSubjects } = useQuery({
     queryKey: ['subjects-list'],
     queryFn: () => subjectService.getAll(),
   });
 
   // Fetch faculty members (re-use standard fetch)
-  const { data: facultyResponse } = useQuery({
-    queryKey: ['faculties-list'],
+  const { data: facultyResponse, refetch: refetchFaculties } = useQuery({
+    queryKey: ['faculty-list'],
     queryFn: () => facultyService.getAll(),
   });
   const faculties = facultyResponse?.data || [];
@@ -126,7 +126,11 @@ export const FacultySubjectAssignment = () => {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => refetchQualifications()}
+            onClick={() => {
+              refetchQualifications();
+              refetchFaculties();
+              refetchSubjects();
+            }}
             className="inline-flex items-center gap-2 rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-xs font-bold text-stone-700 hover:bg-stone-50 dark:border-stone-800 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800 transition-colors cursor-pointer"
           >
             <RefreshCw className="h-4 w-4 text-emerald-600" />
