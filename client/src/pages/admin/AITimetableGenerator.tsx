@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Calendar, Sparkles, Clock, CheckCircle2, RefreshCw, Send, Check, UserCheck, AlertCircle, Edit, X, Save } from 'lucide-react';
+import { Calendar, Sparkles, Clock, CheckCircle2, RefreshCw, Send, Check, UserCheck, AlertCircle, Edit, X, Save, Download } from 'lucide-react';
 import { aiService, type TimetableSlot } from '../../services/ai.service';
 import { timetableService } from '../../services/timetable.service';
 import { facultyService } from '../../services/faculty.service';
@@ -372,6 +372,179 @@ export const AITimetableGenerator = () => {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleDownloadPDF = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups to download/print the timetable PDF.');
+      return;
+    }
+
+    const timeCols = (periods && periods.length > 0)
+      ? periods.map(p => ({
+          id: p.id,
+          name: p.name,
+          label: `${formatTimeTo12h(p.startTime)} - ${formatTimeTo12h(p.endTime)}`
+        }))
+      : [
+          { id: undefined, name: 'Period 1', label: '08:15 AM - 09:15 AM' },
+          { id: undefined, name: 'Period 2', label: '09:15 AM - 10:15 AM' },
+          { id: undefined, name: 'Period 3', label: '10:15 AM - 11:15 AM' },
+          { id: undefined, name: 'Period 4', label: '11:15 AM - 12:15 PM' },
+          { id: undefined, name: 'Period 5', label: '12:15 PM - 01:15 PM' },
+          { id: undefined, name: 'Period 6', label: '01:15 PM - 02:15 PM' }
+        ];
+
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    let tableHeadersHtml = '<th style="width: 80px;">Day</th>';
+    timeCols.forEach(col => {
+      tableHeadersHtml += `
+        <th>
+          <div class="period-name">${col.name}</div>
+          <div class="period-time">${col.label}</div>
+        </th>
+      `;
+    });
+
+    const semNum = extractSemNum(semester);
+    const targetDept = departments.find(d => normalize(d.name) === normalize(branch) || normalize(d.code) === normalize(branch));
+    const targetDeptId = targetDept?.id;
+    let activeSections = sections.filter(sec => 
+      sec.semester === semNum && 
+      (!targetDeptId || sec.departmentId === targetDeptId)
+    );
+
+    if (activeSections.length === 0) {
+      activeSections = [{ id: 'fallback', name: activeSectionTab } as any];
+    }
+
+    let pagesHtml = '';
+
+    activeSections.forEach((sec, secIdx) => {
+      const sectionSlots = sortedSchedule.filter(s => s.section === sec.name);
+      let tableRowsHtml = '';
+
+      days.forEach(day => {
+        tableRowsHtml += `<tr><td class="day-cell">${day}</td>`;
+        timeCols.forEach(col => {
+          // Precise match using period ID or fallback time label
+          const slot = sectionSlots.find(s => 
+            s.day === day && 
+            (s.periodId === col.id || s.time === col.label)
+          );
+
+          if (slot) {
+            tableRowsHtml += `
+              <td>
+                <div class="subject-title">${slot.subject}</div>
+                <div class="slot-details">
+                  <span class="room-badge">${slot.room}</span>
+                  <span class="faculty-name">${slot.faculty}</span>
+                </div>
+              </td>
+            `;
+          } else {
+            tableRowsHtml += `<td class="empty-cell">-</td>`;
+          }
+        });
+        tableRowsHtml += '</tr>';
+      });
+
+      pagesHtml += `
+        <div class="timetable-page">
+          <div class="header">
+            <div class="college-title">University College of Engineering & Technology</div>
+            <div class="sub-title">Office of the Dean Academics • Timetable Management Division</div>
+            <div class="doc-type">OFFICIAL CLASS TIMETABLE REPORT</div>
+          </div>
+
+          <div class="info-bar">
+            <div class="info-item"><span>Semester:</span> ${semester}</div>
+            <div class="info-item"><span>Department/Branch:</span> ${branch}</div>
+            <div class="info-item"><span>Section:</span> ${sec.name}</div>
+            <div class="info-item"><span>Academic Session:</span> 2026-2027</div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                ${tableHeadersHtml}
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRowsHtml}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <div>
+              <div class="sig-line">Prepared By (Timetable Coordinator)</div>
+            </div>
+            <div>
+              <div class="sig-line">Approved By (Dean Academics / HOD)</div>
+            </div>
+          </div>
+        </div>
+        ${secIdx < activeSections.length - 1 ? '<div class="page-break"></div>' : ''}
+      `;
+    });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Academic Timetable - ${semester}</title>
+          <style>
+            @page { size: A4 landscape; margin: 15mm; }
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 10px; color: #0f172a; line-height: 1.5; background: #fff; }
+            .header { text-align: center; border-bottom: 3px double #0f172a; padding-bottom: 12px; margin-bottom: 20px; }
+            .college-title { font-size: 20px; font-weight: 900; text-transform: uppercase; color: #0f172a; margin: 0; letter-spacing: 1px; }
+            .sub-title { font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; margin-top: 4px; }
+            .doc-type { font-size: 12px; font-weight: 800; background: #f1f5f9; display: inline-block; padding: 5px 14px; border-radius: 6px; margin-top: 8px; border: 1px solid #cbd5e1; }
+            
+            .info-bar { display: flex; justify-content: space-between; background: #f8fafc; padding: 12px 16px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px; font-size: 11px; font-weight: 700; }
+            .info-item span { color: #64748b; font-weight: 500; }
+
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; table-layout: fixed; }
+            th { background: #0f172a; color: white; border: 1px solid #334155; padding: 8px 6px; text-align: center; }
+            .period-name { font-size: 10px; font-weight: 900; text-transform: uppercase; }
+            .period-time { font-size: 8px; color: #cbd5e1; font-weight: 550; margin-top: 2px; }
+            
+            td { border: 1px solid #cbd5e1; padding: 8px; text-align: center; vertical-align: middle; height: 55px; }
+            .day-cell { background: #f1f5f9; font-weight: 900; font-size: 11px; color: #0f172a; text-transform: uppercase; text-align: center; }
+            .subject-title { font-size: 11px; font-weight: 800; color: #0f172a; word-wrap: break-word; }
+            .slot-details { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 6px; }
+            .room-badge { font-size: 8px; font-weight: 800; background: #e2e8f0; color: #334155; padding: 2px 5px; border-radius: 4px; border: 0.5px solid #cbd5e1; }
+            .faculty-name { font-size: 8px; color: #475569; font-weight: 700; font-style: italic; }
+            .empty-cell { color: #94a3b8; font-style: italic; font-size: 12px; }
+
+            .footer { margin-top: 40px; display: flex; justify-content: space-between; text-align: center; font-size: 10px; font-weight: 600; color: #475569; }
+            .sig-line { border-top: 1.5px dashed #94a3b8; width: 150px; margin-top: 30px; padding-top: 4px; }
+
+            @media print {
+              body { background: #fff; padding: 0; margin: 0; }
+              .page-break { page-break-after: always; break-after: page; }
+            }
+          </style>
+        </head>
+        <body>
+          ${pagesHtml}
+
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(() => { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   };
 
   const handlePublish = async () => {
@@ -785,6 +958,15 @@ export const AITimetableGenerator = () => {
                   </span>
                 )}
                 
+                <button
+                  type="button"
+                  onClick={handleDownloadPDF}
+                  className="inline-flex items-center gap-2 rounded-2xl px-5 py-2.5 text-xs font-black text-stone-700 bg-white border border-stone-200 hover:bg-stone-50 dark:bg-stone-800 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-750 shadow-md transition-all cursor-pointer font-['Outfit']"
+                >
+                  <Download className="h-4 w-4 text-stone-500" />
+                  Download PDF
+                </button>
+
                 <button
                   type="button"
                   onClick={handlePublish}
