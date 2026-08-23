@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Plus, Edit2, Trash2, RefreshCw, AlertCircle, Save, X, Search, GraduationCap } from 'lucide-react';
+import { BookOpen, Plus, Edit2, Trash2, RefreshCw, AlertCircle, Search } from 'lucide-react';
 import { subjectService } from '../../../services/subject.service';
 import type { Subject } from '../../../services/subject.service';
 import { departmentService } from '../../../services/department.service';

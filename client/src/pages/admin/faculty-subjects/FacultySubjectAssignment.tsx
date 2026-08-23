@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Award, Plus, Trash2, RefreshCw, AlertCircle, Search, UserCheck, GraduationCap, CheckSquare, X } from 'lucide-react';
+import { Award, Plus, RefreshCw, AlertCircle, Search, UserCheck, GraduationCap, X } from 'lucide-react';
 import { facultySubjectService } from '../../../services/faculty-subject.service';
-import type { FacultySubject } from '../../../services/faculty-subject.service';
 import { subjectService } from '../../../services/subject.service';
 import { facultyService } from '../../../services/faculty.service';
 import { RoleGuard } from '../../../components/common/RoleGuard';
