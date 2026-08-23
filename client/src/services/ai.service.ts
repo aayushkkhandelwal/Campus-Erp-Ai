@@ -2,6 +2,7 @@ import api from './api';
 import { studentService } from './student.service';
 import { facultyService } from './faculty.service';
 import { departmentService } from './department.service';
+import { timetableService } from './timetable.service';
 import type { Role, User } from '../types';
 
 export interface QuestionPaperConfig {
@@ -27,6 +28,7 @@ export interface TimetableSlot {
   facultyId?: string;
   room: string;
   section: string;
+  periodId?: string;
 }
 
 export const aiService = {
@@ -141,43 +143,385 @@ export const aiService = {
   },
 
   // ----------------------------------------------------------------
-  // 3. AI TIMETABLE GENERATOR ENGINE
+  // 3. AI TIMETABLE GENERATOR ENGINE (CSP Constraint Satisfaction Solver)
   // ----------------------------------------------------------------
   async generateTimetable(params: {
     semester: string;
     subjects: string[];
     facultyList: string[];
-    facultyObjects?: { id: string; name: string }[];
+    facultyObjects?: { id: string; name: string; weeklyHours?: number; specialization?: string }[];
     rooms: string[];
+    branch?: string;
+    section?: string;
+    sections?: string[];
+    subjectWeeklyHours?: Record<string, number>;
+    qualifications?: { facultyId: string; subjectId: string; subjectName?: string }[];
   }): Promise<TimetableSlot[]> {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const times = ['09:00 - 10:00 AM', '10:00 - 11:00 AM', '11:00 - 12:00 PM', '02:00 - 03:00 PM'];
-    const slots: TimetableSlot[] = [];
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
+    // Fetch periods from API
+    let periods: any[] = [];
+    try {
+      periods = await timetableService.getPeriods();
+    } catch (error) {
+      console.warn('Failed to fetch periods from DB, falling back to defaults:', error);
+    }
+
+    const formatTo12h = (t24: string) => {
+      const [h, m] = t24.split(':');
+      const hour = parseInt(h, 10);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const hr12 = hour % 12 === 0 ? 12 : hour % 12;
+      return `${hr12}:${m} ${ampm}`;
+    };
+
+    const periodCols = (periods && periods.length > 0)
+      ? periods.map(p => ({
+          id: p.id,
+          startTime: p.startTime,
+          endTime: p.endTime,
+          name: p.name,
+          label: `${formatTo12h(p.startTime)} - ${formatTo12h(p.endTime)}`
+        }))
+      : [
+          { id: 'p1', startTime: '08:15', endTime: '09:15', name: 'Period 1', label: '08:15 AM - 09:15 AM' },
+          { id: 'p2', startTime: '09:15', endTime: '10:15', name: 'Period 2', label: '09:15 AM - 10:15 AM' },
+          { id: 'p3', startTime: '10:15', endTime: '11:15', name: 'Period 3', label: '10:15 AM - 11:15 AM' },
+          { id: 'p4', startTime: '11:15', endTime: '12:15', name: 'Period 4', label: '11:15 AM - 12:15 PM' },
+          { id: 'p5', startTime: '12:15', endTime: '13:15', name: 'Period 5', label: '12:15 PM - 01:15 PM' },
+          { id: 'p6', startTime: '13:15', endTime: '14:15', name: 'Period 6', label: '01:15 PM - 02:15 PM' }
+        ];
 
     const facultyItems = params.facultyObjects && params.facultyObjects.length > 0
-      ? params.facultyObjects
-      : params.facultyList.map((f, idx) => ({ id: `fac-${idx}`, name: f }));
+      ? params.facultyObjects.map(f => ({
+          id: f.id,
+          name: f.name,
+          weeklyHours: f.weeklyHours ?? 18,
+          specialization: f.specialization ?? ''
+        }))
+      : params.facultyList.map((f, idx) => ({
+          id: `fac-${idx}`,
+          name: f,
+          weeklyHours: 18,
+          specialization: ''
+        }));
 
-    let subjIdx = 0;
-    for (const day of days) {
-      for (let t = 0; t < times.length; t++) {
-        const subject = params.subjects[subjIdx % params.subjects.length];
-        const facObj = facultyItems[subjIdx % facultyItems.length];
-        const room = params.rooms[t % params.rooms.length];
+    // Setup sections list - fail if database sections are empty
+    if (!params.sections || params.sections.length === 0) {
+      throw new Error('No section names provided for timetable generation. Please define at least one section in Section Manager.');
+    }
+    const sectionsList = params.sections;
+    
+    // Setup subject hours limits
+    const subjHoursMap = params.subjectWeeklyHours || {};
+    params.subjects.forEach(s => {
+      if (subjHoursMap[s] === undefined) {
+        // Labs default to 2, standard lectures default to 4 hours per week
+        subjHoursMap[s] = s.toLowerCase().includes('lab') ? 2 : 4;
+      }
+    });
 
-        slots.push({
-          day,
-          time: times[t],
-          subject,
-          faculty: facObj.name,
-          facultyId: facObj.id,
-          room,
-          section: 'Section A',
-        });
-        subjIdx++;
+    // Model CSP Variables: (section, subject, sessionIdx)
+    interface CSPVar {
+      id: string;
+      section: string;
+      subject: string;
+      sessionIdx: number;
+    }
+    const variablesList: CSPVar[] = [];
+    for (const section of sectionsList) {
+      for (const subject of params.subjects) {
+        const hours = subjHoursMap[subject];
+        for (let i = 0; i < hours; i++) {
+          variablesList.push({
+            id: `${section}-${subject}-${i}`,
+            section,
+            subject,
+            sessionIdx: i
+          });
+        }
       }
     }
-    return slots;
+
+    interface CSPVal {
+      day: string;
+      period: typeof periodCols[0];
+      room: string;
+      faculty: typeof facultyItems[0];
+    }
+
+    class Solver {
+      variables: CSPVar[];
+      periods: typeof periodCols;
+      days: string[];
+      rooms: string[];
+      faculties: typeof facultyItems;
+      subjectWeeklyHours: Record<string, number>;
+      qualifications?: { facultyId: string; subjectId: string; subjectName?: string }[];
+      
+      assignment: Record<string, CSPVal> = {};
+      
+      // Index timelines for O(1) conflict validation
+      facultyTimeline = new Set<string>();   // "facultyId-day-periodId"
+      roomTimeline = new Set<string>();      // "room-day-periodId"
+      sectionTimeline = new Set<string>();   // "section-day-periodId"
+      facultyWorkload = new Map<string, number>(); // "facultyId" -> count
+      
+      // Tracking failures & iterations
+      iterations = 0;
+      deepestLevel = 0;
+      deepestFailedVariable: CSPVar | null = null;
+      failureCounts: Record<string, Record<string, number>> = {};
+
+      constructor(
+        v: CSPVar[],
+        p: typeof periodCols,
+        d: string[],
+        r: string[],
+        f: typeof facultyItems,
+        sh: Record<string, number>,
+        q?: { facultyId: string; subjectId: string; subjectName?: string }[]
+      ) {
+        this.variables = v;
+        this.periods = p;
+        this.days = d;
+        this.rooms = r;
+        this.faculties = f;
+        this.subjectWeeklyHours = sh;
+        this.qualifications = q;
+      }
+
+      getQualifiedFaculty(subject: string): typeof facultyItems {
+        if (this.qualifications && this.qualifications.length > 0) {
+          const normSubject = subject.trim().toLowerCase().replace(/\s+/g, ' ');
+          const matchingFacultyIds = this.qualifications
+            .filter(q => q.subjectName && q.subjectName.trim().toLowerCase().replace(/\s+/g, ' ') === normSubject)
+            .map(q => q.facultyId);
+          
+          const qualified = this.faculties.filter(f => matchingFacultyIds.includes(f.id));
+          if (qualified.length > 0) {
+            return qualified;
+          }
+        }
+
+        const specMatches = this.faculties.filter(f => 
+          f.specialization && f.specialization.toLowerCase().includes(subject.toLowerCase())
+        );
+        return specMatches.length > 0 ? specMatches : this.faculties;
+      }
+
+      isConsistent(v: CSPVar, val: CSPVal): boolean {
+        const periodId = val.period.id;
+
+        // 1. Faculty Double Booking Check
+        if (this.facultyTimeline.has(`${val.faculty.id}-${val.day}-${periodId}`)) {
+          this.recordFailure(v.id, 'Faculty Member Overlap');
+          return false;
+        }
+
+        // 2. Room Overlap Check
+        if (this.roomTimeline.has(`${val.room}-${val.day}-${periodId}`)) {
+          this.recordFailure(v.id, 'Room Double Booking');
+          return false;
+        }
+
+        // 3. Section Overlap Check (Single lecture per section per period)
+        if (this.sectionTimeline.has(`${v.section}-${val.day}-${periodId}`)) {
+          this.recordFailure(v.id, 'Student Schedule Conflict');
+          return false;
+        }
+
+        // 4. Subject Daily Limit Check (Max once per day per section, unless weeklyHours > days.length)
+        const weeklyHoursNeeded = this.subjectWeeklyHours[v.subject] || 4;
+        const maxDaily = Math.ceil(weeklyHoursNeeded / this.days.length);
+        
+        let dailyCount = 0;
+        for (const [assignedVarId, assignedVal] of Object.entries(this.assignment)) {
+          const assignedVar = this.variables.find(varObj => varObj.id === assignedVarId);
+          if (assignedVar && assignedVar.section === v.section && assignedVar.subject === v.subject && assignedVal.day === val.day) {
+            dailyCount++;
+          }
+        }
+        if (dailyCount >= maxDaily) {
+          this.recordFailure(v.id, `Subject Daily Limit Exceeded (${maxDaily})`);
+          return false;
+        }
+
+        // 5. Faculty Workload Limit Check
+        const currentWorkload = this.facultyWorkload.get(val.faculty.id) || 0;
+        if (currentWorkload >= val.faculty.weeklyHours) {
+          this.recordFailure(v.id, 'Faculty Workload Cap Exceeded');
+          return false;
+        }
+
+        // 6. Room Suitability Check (Labs to Labs, lectures to non-Labs)
+        const isLabSubject = v.subject.toLowerCase().includes('lab') || v.subject.toLowerCase().includes('practical');
+        const isLabRoom = val.room.toLowerCase().includes('lab');
+        if (isLabSubject !== isLabRoom) {
+          this.recordFailure(v.id, 'Incompatible Room Type');
+          return false;
+        }
+
+        return true;
+      }
+
+      recordFailure(varId: string, constraint: string) {
+        if (!this.failureCounts[varId]) this.failureCounts[varId] = {};
+        this.failureCounts[varId][constraint] = (this.failureCounts[varId][constraint] || 0) + 1;
+      }
+
+      assign(v: CSPVar, val: CSPVal) {
+        const periodId = val.period.id;
+        this.assignment[v.id] = val;
+        this.facultyTimeline.add(`${val.faculty.id}-${val.day}-${periodId}`);
+        this.roomTimeline.add(`${val.room}-${val.day}-${periodId}`);
+        this.sectionTimeline.add(`${v.section}-${val.day}-${periodId}`);
+        this.facultyWorkload.set(val.faculty.id, (this.facultyWorkload.get(val.faculty.id) || 0) + 1);
+      }
+
+      unassign(v: CSPVar, val: CSPVal) {
+        const periodId = val.period.id;
+        delete this.assignment[v.id];
+        this.facultyTimeline.delete(`${val.faculty.id}-${val.day}-${periodId}`);
+        this.roomTimeline.delete(`${val.room}-${val.day}-${periodId}`);
+        this.sectionTimeline.delete(`${v.section}-${val.day}-${periodId}`);
+        this.facultyWorkload.set(val.faculty.id, Math.max(0, (this.facultyWorkload.get(val.faculty.id) || 0) - 1));
+      }
+
+      selectUnassignedVariable(): CSPVar | null {
+        // Minimum Remaining Values (MRV) heuristic selection
+        let minDomainSize = Infinity;
+        let selectedVar: CSPVar | null = null;
+        
+        for (const v of this.variables) {
+          if (this.assignment[v.id]) continue;
+          
+          let domainSize = 0;
+          const qualifiedFaculty = this.getQualifiedFaculty(v.subject);
+          
+          for (const day of this.days) {
+            for (const period of this.periods) {
+              for (const room of this.rooms) {
+                for (const faculty of qualifiedFaculty) {
+                  const val = { day, period, room, faculty };
+                  if (this.isConsistent(v, val)) {
+                    domainSize++;
+                  }
+                }
+              }
+            }
+          }
+          
+          if (domainSize < minDomainSize) {
+            minDomainSize = domainSize;
+            selectedVar = v;
+          }
+        }
+        
+        return selectedVar;
+      }
+
+      solve(level = 0): boolean {
+        this.iterations++;
+        if (this.iterations > 50000) {
+          return false; // Iterations cap to prevent main-thread hangs
+        }
+
+        if (Object.keys(this.assignment).length === this.variables.length) {
+          return true;
+        }
+
+        const variable = this.selectUnassignedVariable();
+        if (!variable) return false;
+
+        if (level > this.deepestLevel) {
+          this.deepestLevel = level;
+          this.deepestFailedVariable = variable;
+        }
+
+        const qualifiedFaculty = this.getQualifiedFaculty(variable.subject);
+
+        // Build domains
+        const domainValues: CSPVal[] = [];
+        for (const day of this.days) {
+          for (const period of this.periods) {
+            for (const room of this.rooms) {
+              for (const faculty of qualifiedFaculty) {
+                domainValues.push({ day, period, room, faculty });
+              }
+            }
+          }
+        }
+
+        // Try values
+        for (const val of domainValues) {
+          if (this.isConsistent(variable, val)) {
+            this.assign(variable, val);
+            
+            if (this.solve(level + 1)) {
+              return true;
+            }
+            
+            this.unassign(variable, val);
+          }
+        }
+
+        return false;
+      }
+    }
+
+    const solver = new Solver(
+      variablesList,
+      periodCols,
+      days,
+      params.rooms,
+      facultyItems,
+      subjHoursMap,
+      params.qualifications
+    );
+
+    if (!solver.solve()) {
+      const deepestFailed = solver.deepestFailedVariable;
+      const counts = deepestFailed ? solver.failureCounts[deepestFailed.id] || {} : {};
+      const failReasonStr = Object.entries(counts)
+        .map(([c, cnt]) => `${c} (${cnt} times)`)
+        .join(', ');
+
+      let errorMsg = `Unable to generate a conflict-free department timetable satisfying all constraints.\n`;
+      if (deepestFailed) {
+        errorMsg += `⚠️ Bottleneck encountered while scheduling: ${deepestFailed.section} • Subject: "${deepestFailed.subject}" (Session index: ${deepestFailed.sessionIdx + 1}).\n`;
+        if (failReasonStr) {
+          errorMsg += `Primary constraints blocking allocation: ${failReasonStr}.\n`;
+        }
+      }
+      errorMsg += `Please verify that you have sufficient rooms, active faculty, and that weekly teaching caps are not exceeded.`;
+      throw new Error(errorMsg);
+    }
+
+    // Convert variables and values assignment map to TimetableSlot layout
+    const resultSlots: TimetableSlot[] = [];
+    for (const [varId, val] of Object.entries(solver.assignment)) {
+      const variable = solver.variables.find(v => v.id === varId)!;
+      resultSlots.push({
+        day: val.day,
+        time: val.period.label,
+        subject: variable.subject,
+        faculty: val.faculty.name,
+        facultyId: val.faculty.id,
+        room: val.room,
+        section: variable.section,
+        periodId: val.period.id
+      });
+    }
+
+    // Post-generation explicit constraints validation pass
+    const validationResult = validateGeneratedSchedule(resultSlots, periodCols, facultyItems);
+    if (!validationResult.isValid) {
+      throw new Error(`Self-Validation Check Failed: Generated slots contain overlaps: ${validationResult.conflicts.join('; ')}`);
+    }
+
+    // Return all generated slots for all sections
+    return resultSlots;
   },
 
   // ----------------------------------------------------------------
@@ -260,3 +604,95 @@ export const aiService = {
       `College ERP Administration`;
   },
 };
+
+export function validateGeneratedSchedule(
+  slots: TimetableSlot[],
+  periods: any[],
+  facultyObjects: any[]
+): { isValid: boolean; conflicts: string[] } {
+  const conflicts: string[] = [];
+  const facultyTimeline = new Set<string>(); // "facultyId-day-periodId"
+  const roomTimeline = new Set<string>();    // "room-day-periodId"
+  const sectionTimeline = new Set<string>(); // "section-day-periodId"
+  const sectionDailySubjects = new Set<string>(); // "section-day-subject-checked"
+  const facultyWorkload = new Map<string, number>(); // "facultyId" -> count
+  
+  const facultyMap = new Map(facultyObjects.map(f => [f.id, f]));
+  const periodMap = new Map(periods.map(p => [p.name, p.id]));
+
+  // Pre-calculate weekly hours count for each section's subject in this batch
+  const subjectWeeklyHoursCount: Record<string, Record<string, number>> = {};
+  for (const slot of slots) {
+    if (slot.section && slot.subject) {
+      if (!subjectWeeklyHoursCount[slot.section]) {
+        subjectWeeklyHoursCount[slot.section] = {};
+      }
+      subjectWeeklyHoursCount[slot.section][slot.subject] = (subjectWeeklyHoursCount[slot.section][slot.subject] || 0) + 1;
+    }
+  }
+
+  for (const slot of slots) {
+    const day = slot.day;
+    const periodId = slot.periodId || periodMap.get(slot.time) || slot.time;
+    const roomName = slot.room;
+    const facultyId = slot.facultyId;
+    const section = slot.section;
+    const subject = slot.subject;
+    
+    if (facultyId) {
+      const facKey = `${facultyId}-${day}-${periodId}`;
+      if (facultyTimeline.has(facKey)) {
+        conflicts.push(`Faculty Double Booking: Faculty Member is scheduled twice on ${day} at period/time "${slot.time}".`);
+      }
+      facultyTimeline.add(facKey);
+      
+      const usedHours = (facultyWorkload.get(facultyId) || 0) + 1;
+      facultyWorkload.set(facultyId, usedHours);
+      
+      const limit = facultyMap.get(facultyId)?.weeklyHours ?? 18;
+      if (usedHours > limit) {
+        conflicts.push(`Faculty Workload Exceeded: Faculty has been scheduled for ${usedHours} periods, exceeding weekly limit of ${limit}.`);
+      }
+    }
+
+    if (roomName) {
+      const roomKey = `${roomName}-${day}-${periodId}`;
+      if (roomTimeline.has(roomKey)) {
+        conflicts.push(`Room Clash: Room "${roomName}" is scheduled twice on ${day} at period/time "${slot.time}".`);
+      }
+      roomTimeline.add(roomKey);
+    }
+
+    if (section) {
+      const secKey = `${section}-${day}-${periodId}`;
+      if (sectionTimeline.has(secKey)) {
+        conflicts.push(`Section Overlap: Section "${section}" has multiple classes scheduled on ${day} at period/time "${slot.time}".`);
+      }
+      sectionTimeline.add(secKey);
+
+      // Dynamic Subject Daily Limit Check based on total scheduled hours in the batch
+      const weeklyHoursNeeded = subjectWeeklyHoursCount[section]?.[subject] || 4;
+      const daysInWeek = 6; // Mon-Sat
+      const maxDaily = Math.ceil(weeklyHoursNeeded / daysInWeek);
+
+      // Count total occurrences of this subject on this day for this section in the batch
+      let dailyCount = 0;
+      for (const s of slots) {
+        if (s.section === section && s.subject === subject && s.day === day) {
+          dailyCount++;
+        }
+      }
+
+      const daySubjectKey = `${section}-${day}-${subject}`;
+      if (dailyCount > maxDaily && !sectionDailySubjects.has(daySubjectKey)) {
+        conflicts.push(`Subject Daily Limit: Subject "${subject}" is scheduled ${dailyCount} times on ${day} for section "${section}" (exceeds dynamic daily limit of ${maxDaily}).`);
+        sectionDailySubjects.add(daySubjectKey);
+      }
+    }
+  }
+
+  return {
+    isValid: conflicts.length === 0,
+    conflicts
+  };
+}
