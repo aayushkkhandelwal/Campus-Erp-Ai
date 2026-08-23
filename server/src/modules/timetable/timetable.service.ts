@@ -230,7 +230,7 @@ export const publishTimetable = async (collegeId: string, semester: string, slot
 
     // 5. Resolve Section (Find-or-create)
     let sectionId = null;
-    const secName = slot.groupLabel || 'Section A';
+    const secName = slot.groupLabel || (slot as any).section || 'Section A';
     if (secName) {
       const semNum = extractSemesterNumber(semester);
       let sectionRecord = await prisma.section.findUnique({
@@ -452,7 +452,7 @@ export const validateTimetable = async (collegeId: string, proposedSemester: str
       day: s.day,
       time: s.time,
       subject: s.subject,
-      groupLabel: s.groupLabel || null,
+      groupLabel: s.groupLabel || (s as any).section || null,
       isPlaceholder: s.isPlaceholder || false,
       facultyId,
       facultyName,
