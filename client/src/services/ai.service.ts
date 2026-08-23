@@ -29,6 +29,8 @@ export interface TimetableSlot {
   room: string;
   section: string;
   periodId?: string;
+  branch?: string;
+  semester?: string;
 }
 
 export const aiService = {

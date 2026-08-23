@@ -1,35 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Clock, CheckCircle2 } from 'lucide-react';
+import { Calendar, CheckCircle2 } from 'lucide-react';
 import { timetableService } from '../../services/timetable.service';
 import { departmentService } from '../../services/department.service';
 import { sectionService } from '../../services/section.service';
 import { studentService } from '../../services/student.service';
 import { useAuth } from '../../context/AuthContext';
 import type { TimetableSlot } from '../../services/ai.service';
-
-const DAY_ORDER: Record<string, number> = {
-  Monday: 1,
-  Tuesday: 2,
-  Wednesday: 3,
-  Thursday: 4,
-  Friday: 5,
-  Saturday: 6,
-  Sunday: 7,
-};
-
-const parseStartTime = (timeStr: string): number => {
-  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
-  if (!match) return 0;
-  let hours = parseInt(match[1], 10);
-  const minutes = parseInt(match[2], 10);
-  const period = match[3]?.toUpperCase();
-
-  if (period === 'PM' && hours < 12) hours += 12;
-  if (period === 'AM' && hours === 12) hours = 0;
-
-  return hours * 60 + minutes;
-};
 
 export const StudentTimetable = () => {
   const { user } = useAuth();
@@ -198,25 +175,6 @@ export const StudentTimetable = () => {
 
     return slotBranch === selectedBranchLower && slotSection === selectedSectionLower;
   });
-
-  // Group published slots by day if live & sort chronologically by day and time
-  const groupedPublished = filteredPublishedSlots
-    .reduce((acc, slot) => {
-      let dayGroup = acc.find((g) => g.day === slot.day);
-      if (!dayGroup) {
-        dayGroup = { day: slot.day, slots: [] };
-        acc.push(dayGroup);
-      }
-      dayGroup.slots.push(slot);
-      return acc;
-    }, [] as { day: string; slots: TimetableSlot[] }[])
-    .sort((a, b) => (DAY_ORDER[a.day] || 99) - (DAY_ORDER[b.day] || 99));
-
-  groupedPublished.forEach((group) => {
-    group.slots.sort((a, b) => parseStartTime(a.time) - parseStartTime(b.time));
-  });
-
-  const timetable = isLive && groupedPublished.length > 0 ? groupedPublished : defaultTimetable;
 
   const formatTimeTo12h = (time24: string) => {
     if (!time24) return '';
