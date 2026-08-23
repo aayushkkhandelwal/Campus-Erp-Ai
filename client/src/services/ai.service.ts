@@ -453,8 +453,9 @@ export const aiService = {
           }
         }
 
-        // Try values
-        for (const val of domainValues) {
+        // Try values (shuffled to distribute classes organically across different sections and days)
+        const shuffledDomainValues = [...domainValues].sort(() => Math.random() - 0.5);
+        for (const val of shuffledDomainValues) {
           if (this.isConsistent(variable, val)) {
             this.assign(variable, val);
             
