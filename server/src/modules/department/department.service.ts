@@ -76,6 +76,7 @@ export const createDepartment = async (data: CreateDepartmentInput) => {
       code: data.code.toUpperCase().trim(),
       description: data.description,
       headOfDepartment: data.headOfDepartment,
+      collegeId: (data as any).collegeId || 'default-college-id',
     },
   });
 

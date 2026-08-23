@@ -10,6 +10,7 @@ export interface UserPayload {
   status: string;
   phone?: string | null;
   mustChangePassword?: boolean;
+  collegeId?: string | null;
 }
 
 export interface AuthRequest extends Request {
@@ -36,6 +37,7 @@ export const authenticate = async (
           status: user.status,
           phone: user.phone,
           mustChangePassword: !!(user as any).mustChangePassword,
+          collegeId: (user as any).collegeId || null,
         };
       }
     }
@@ -57,6 +59,7 @@ export const authenticate = async (
             status: sessionUser.status,
             phone: sessionUser.phone,
             mustChangePassword: !!(sessionUser as any).mustChangePassword,
+            collegeId: (sessionUser as any).collegeId || null,
           };
         } else {
           // Try JWT verification fallback
@@ -73,6 +76,7 @@ export const authenticate = async (
               fullName: decoded.fullName || 'User',
               status: decoded.status || 'ACTIVE',
               mustChangePassword: !!decoded.mustChangePassword,
+              collegeId: decoded.collegeId || null,
             };
           } catch {
             // Fall through to 401
@@ -88,7 +92,6 @@ export const authenticate = async (
       });
     }
 
-
     return next();
   } catch (error) {
     return res.status(401).json({
@@ -97,6 +100,36 @@ export const authenticate = async (
     });
   }
 };
+
+/**
+ * Resolves the collegeId for database query tenant isolation.
+ * SECURITY ENFORCEMENT: Client-supplied collegeId is ONLY honored if user is SUPER_ADMIN.
+ * Otherwise, the query is strictly bound to req.user.collegeId regardless of input parameters.
+ */
+export function getTenantCollegeId(req: AuthRequest): string {
+  if (!req.user) {
+    throw new Error('Unauthorized');
+  }
+
+  console.log(`[TenantGuard] User: ${req.user.email}, Role: ${req.user.role}, Session CollegeId: ${req.user.collegeId}`);
+
+  // Enforce isolation boundary: Only honor client-supplied parameters if role is SUPER_ADMIN
+  if (req.user.role === 'SUPER_ADMIN') {
+    const clientTargetId = (req.query.collegeId as string) || (req.body.collegeId as string);
+    if (clientTargetId) {
+      console.log(`[TenantGuard] Super Admin overriding to target collegeId: ${clientTargetId}`);
+      return clientTargetId;
+    }
+  }
+
+  // For all standard tenants (ADMIN, FACULTY, STUDENT), strictly default to user's assigned context
+  const collegeId = req.user.collegeId;
+  if (!collegeId) {
+    throw new Error('Access Denied: Tenant context missing from user session');
+  }
+
+  return collegeId;
+}
 
 export const requireRole = (...allowedRoles: string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {

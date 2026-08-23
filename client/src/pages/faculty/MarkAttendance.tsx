@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckSquare, Check, X, Save, UserCheck, Edit3, RefreshCw, Eye, Clock, CalendarCheck, AlertCircle, Lock, Unlock } from 'lucide-react';
+import { CheckSquare, Check, X, Save, UserCheck, Edit3, RefreshCw, Eye, Clock, CalendarCheck, AlertCircle, Lock, Unlock, CheckCircle2 } from 'lucide-react';
 import { attendanceService, type StudentAttendanceItem } from '../../services/attendance.service';
 import { studentService } from '../../services/student.service';
 import { timetableService } from '../../services/timetable.service';
@@ -22,14 +22,26 @@ export const MarkAttendance = () => {
   const [students, setStudents] = useState<StudentAttendanceItem[]>([]);
 
   // Timetable Slot Integration
-  const [activeSlot, setActiveSlot] = useState<TimetableSlot | null>(null);
+   const [activeSlot, setActiveSlot] = useState<TimetableSlot | null>(null);
   const [manualOverride, setManualOverride] = useState(false);
   const [todayDayName, setTodayDayName] = useState('');
+  const [showToast, setShowToast] = useState(false);
 
   const isReadOnly = isFinalized && role !== 'ADMIN' && !adminUnlocked;
 
   useEffect(() => {
-    const checkTimetable = async () => {
+    let currentHash = '';
+
+    const getLatestTimestampOrCount = (slotsList: TimetableSlot[]) => {
+      if (!slotsList || slotsList.length === 0) return '0-0';
+      const maxUpdatedAt = slotsList.reduce((max, slot) => {
+        const slotTime = (slot as any).updatedAt ? new Date((slot as any).updatedAt).getTime() : 0;
+        return slotTime > max ? slotTime : max;
+      }, 0);
+      return `${slotsList.length}-${maxUpdatedAt}`;
+    };
+
+    const checkTimetable = async (isPoll = false) => {
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const now = new Date();
       const currentDay = days[now.getDay()];
@@ -37,6 +49,14 @@ export const MarkAttendance = () => {
 
       const targetDay = (currentDay === 'Saturday' || currentDay === 'Sunday') ? 'Monday' : currentDay;
       const slots = await timetableService.getPublished();
+
+      const newHash = getLatestTimestampOrCount(slots);
+      if (isPoll && currentHash && currentHash !== newHash && slots && slots.length > 0) {
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 4000);
+      }
+      currentHash = newHash;
+
       const todaySlots = slots.filter((s) => s.day === targetDay || s.day === currentDay);
 
       if (todaySlots.length > 0) {
@@ -50,7 +70,14 @@ export const MarkAttendance = () => {
         setActiveSlot(null);
       }
     };
-    checkTimetable();
+
+    checkTimetable(false);
+
+    const interval = setInterval(() => {
+      checkTimetable(true);
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, [user]);
 
   useEffect(() => {
@@ -389,6 +416,13 @@ export const MarkAttendance = () => {
         isOpen={Boolean(selectedStudent)}
         onClose={() => setSelectedStudent(null)}
       />
+
+      {showToast && (
+        <div className="fixed bottom-4 right-4 z-50 p-4 rounded-2xl bg-emerald-600 text-white shadow-2xl flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom duration-300 font-bold text-xs font-['Plus_Jakarta_Sans']">
+          <CheckCircle2 className="h-5 w-5 text-white" />
+          <span>📅 Timetable has been updated</span>
+        </div>
+      )}
     </div>
   );
 };

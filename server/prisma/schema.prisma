@@ -3,27 +3,47 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model College {
+  id               String            @id @default(cuid())
+  name             String
+  domain           String?           @unique
+  users            User[]
+  faculties        Faculty[]
+  subjects         Subject[]
+  classrooms       Classroom[]
+  sections         Section[]
+  facultySubjects  FacultySubject[]
+  timetableSlots   TimetableSlot[]
+  departments      Department[]
+  periods          Period[]
+  academicSessions AcademicSession[]
+  timetables       Timetable[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 }
 
 model User {
-  id               String            @id @default(cuid())
-  fullName         String
-  email            String            @unique
-  phone            String?
-  password         String
-  role             String            @default("STUDENT") // ADMIN, FACULTY, STUDENT
-  status           String            @default("ACTIVE")  // PENDING, ACTIVE, SUSPENDED, DISABLED
-  mustChangePassword Boolean         @default(true)
-  phoneVerified    Boolean           @default(false)
-  twoFactorEnabled Boolean           @default(false)
-  otps             OTPVerification[]
-  sessions         Session[]
-  auditLogs        AuditLog[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                 String            @id @default(cuid())
+  fullName           String
+  email              String            @unique
+  phone              String?
+  password           String
+  role               String            @default("STUDENT") // SUPER_ADMIN, ADMIN, FACULTY, STUDENT
+  status             String            @default("ACTIVE") // PENDING, ACTIVE, SUSPENDED, DISABLED
+  mustChangePassword Boolean           @default(true)
+  phoneVerified      Boolean           @default(false)
+  twoFactorEnabled   Boolean           @default(false)
+  otps               OTPVerification[]
+  sessions           Session[]
+  auditLogs          AuditLog[]
+  collegeId          String?
+  college            College?          @relation(fields: [collegeId], references: [id], onDelete: SetNull)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 }
 
 model OTPVerification {
@@ -54,8 +74,8 @@ model AuditLog {
   userId     String?
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   userRole   String?
-  action     String   // LOGIN_SUCCESS, LOGIN_FAILED, 2FA_VERIFIED, USER_SUSPENDED, ATTENDANCE_UPDATED, MARK_UPDATED
-  resource   String?  // auth, student, faculty, attendance, marks
+  action     String // LOGIN_SUCCESS, LOGIN_FAILED, 2FA_VERIFIED, USER_SUSPENDED, ATTENDANCE_UPDATED, MARK_UPDATED
+  resource   String? // auth, student, faculty, attendance, marks
   resourceId String?
   details    String?
   ipAddress  String?
@@ -65,14 +85,20 @@ model AuditLog {
 model Department {
   id               String    @id @default(cuid())
   name             String
-  code             String    @unique
+  code             String
   description      String?
   headOfDepartment String?
   students         Student[]
   faculties        Faculty[]
   subjects         Subject[]
+  collegeId        String
+  college          College   @relation(fields: [collegeId], references: [id], onDelete: Cascade)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+  Section          Section[]
+
+  @@unique([collegeId, code])
+  @@index([collegeId])
 }
 
 model Student {
@@ -98,22 +124,28 @@ model Student {
 }
 
 model Faculty {
-  id             String          @id @default(cuid())
+  id             String           @id @default(cuid())
   firstName      String
   lastName       String
-  email          String          @unique
-  employeeId     String          @unique
+  email          String           @unique
+  employeeId     String           @unique
   phone          String
   designation    String
   qualification  String
   specialization String
   joiningDate    String
-  status         String          @default("ACTIVE")
+  status         String           @default("ACTIVE")
   departmentId   String
-  department     Department      @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  department     Department       @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  weeklyHours    Int              @default(18)
   timetableSlots TimetableSlot[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  collegeId      String
+  college        College          @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  FacultySubject FacultySubject[]
+
+  @@index([collegeId])
 }
 
 model Course {
@@ -127,32 +159,83 @@ model Course {
 }
 
 model Subject {
-  id           String     @id @default(cuid())
-  name         String
-  code         String     @unique
-  semester     String     @default("1")
-  credits      Int        @default(4)
-  departmentId String
-  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id              String           @id @default(cuid())
+  name            String
+  code            String
+  semester        String           @default("1")
+  credits         Int              @default(4)
+  weeklyHours     Int              @default(4)
+  type            String           @default("CLASSROOM")
+  departmentId    String
+  department      Department       @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  collegeId       String
+  college         College          @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  timetableSlots  TimetableSlot[]
+  facultySubjects FacultySubject[]
+
+  @@unique([collegeId, code])
+  @@index([collegeId])
+}
+
+model AcademicSession {
+  id         String      @id @default(cuid())
+  name       String // e.g. "2026-2027"
+  isCurrent  Boolean     @default(false)
+  collegeId  String
+  college    College     @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  timetables Timetable[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@unique([collegeId, name])
+  @@index([collegeId])
+}
+
+model Timetable {
+  id                String          @id @default(cuid())
+  name              String
+  academicSessionId String
+  academicSession   AcademicSession @relation(fields: [academicSessionId], references: [id], onDelete: Cascade)
+  semester          String
+  branch            String
+  status            String          @default("DRAFT") // DRAFT, PUBLISHED
+  collegeId         String
+  college           College         @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  slots             TimetableSlot[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([collegeId])
 }
 
 model TimetableSlot {
-  id              String   @id @default(cuid())
-  semester        String
-  day             String
-  subject         String
-  status          String   @default("PUBLISHED")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  groupLabel      String?
-  isPlaceholder   Boolean  @default(false)
-  facultyId       String?
-  facultyRelation Faculty? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
-  roomId          String?
-  roomRelation    Room?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  periods         Period[]
+  id                String     @id @default(cuid())
+  day               String
+  section           String     @default("Section A") // TODO: Tracked for future cleanup (legacy fallback for custom label strings)
+  subject           String // TODO: Tracked for future cleanup (legacy fallback for custom label strings)
+  status            String     @default("PUBLISHED")
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  groupLabel        String?
+  isPlaceholder     Boolean    @default(false)
+  sectionId         String?
+  sectionRelation   Section?   @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  subjectId         String?
+  subjectRelation   Subject?   @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  facultyId         String?
+  facultyRelation   Faculty?   @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  classroomId       String?
+  classroomRelation Classroom? @relation(fields: [classroomId], references: [id], onDelete: SetNull)
+  periods           Period[]
+  collegeId         String
+  college           College    @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  timetableId       String
+  timetableRelation Timetable  @relation(fields: [timetableId], references: [id], onDelete: Cascade)
+
+  @@index([collegeId])
+  @@index([timetableId])
 }
 
 model AttendanceRecord {
@@ -223,23 +306,64 @@ model Notice {
   updatedAt  DateTime @updatedAt
 }
 
-model Room {
+model Classroom {
   id             String          @id @default(cuid())
-  name           String          @unique
+  name           String
   type           String          @default("CLASSROOM")
   capacity       Int?
   timetableSlots TimetableSlot[]
+  collegeId      String
+  college        College         @relation(fields: [collegeId], references: [id], onDelete: Cascade)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+
+  @@unique([collegeId, name])
+  @@index([collegeId])
 }
 
 model Period {
   id             String          @id @default(cuid())
   name           String
-  order          Int             @unique
+  order          Int
   startTime      String
   endTime        String
   timetableSlots TimetableSlot[]
+  collegeId      String
+  college        College         @relation(fields: [collegeId], references: [id], onDelete: Cascade)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+
+  @@unique([collegeId, order])
+  @@index([collegeId])
+}
+
+model Section {
+  id             String          @id @default(cuid())
+  name           String
+  semester       String
+  departmentId   String
+  department     Department      @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  timetableSlots TimetableSlot[]
+  collegeId      String
+  college        College         @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@unique([collegeId, name, semester, departmentId])
+  @@index([collegeId])
+}
+
+model FacultySubject {
+  id        String   @id @default(cuid())
+  facultyId String
+  faculty   Faculty  @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  subjectId String
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  collegeId String
+  college   College  @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([collegeId, facultyId, subjectId])
+  @@index([collegeId])
 }

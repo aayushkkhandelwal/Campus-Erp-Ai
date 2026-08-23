@@ -81,7 +81,7 @@ export const createFaculty = async (data: CreateFacultyInput) => {
         deptId = firstDept.id;
       } else {
         const newDept = await prisma.department.create({
-          data: { name: 'Computer Science & Engineering', code: 'CSE' },
+          data: { name: 'Computer Science & Engineering', code: 'CSE', collegeId: 'default-college-id' },
         });
         deptId = newDept.id;
       }
@@ -92,7 +92,7 @@ export const createFaculty = async (data: CreateFacultyInput) => {
       ? firstDept.id
       : (
           await prisma.department.create({
-            data: { name: 'Computer Science & Engineering', code: 'CSE' },
+            data: { name: 'Computer Science & Engineering', code: 'CSE', collegeId: 'default-college-id' },
           })
         ).id;
   }
@@ -127,6 +127,7 @@ export const createFaculty = async (data: CreateFacultyInput) => {
         password: hashedPassword,
         role: 'FACULTY',
         mustChangePassword: true,
+        collegeId: (data as any).collegeId || 'default-college-id',
       } as any,
     });
   } else {
@@ -151,6 +152,7 @@ export const createFaculty = async (data: CreateFacultyInput) => {
       joiningDate: data.joiningDate || new Date().toISOString().split('T')[0],
       status: data.status || 'ACTIVE',
       departmentId: deptId,
+      collegeId: (data as any).collegeId || 'default-college-id',
     },
     include: { department: true },
   });

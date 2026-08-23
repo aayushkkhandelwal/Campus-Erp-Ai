@@ -146,6 +146,7 @@ export const Dashboard = () => {
   const { data: publishedSlots = [] } = useQuery({
     queryKey: ['published-timetable-dashboard'],
     queryFn: () => timetableService.getPublished(),
+    refetchInterval: 30000,
   });
 
   const { data: campusNotices = [] } = useQuery({

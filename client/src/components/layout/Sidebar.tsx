@@ -53,6 +53,15 @@ export const Sidebar = ({ isOpen = false, onClose }: SidebarProps) => {
       ],
     },
     {
+      title: 'Timetable Setup',
+      items: [
+        { to: '/admin/subjects', label: 'Subject Manager', icon: FileText },
+        { to: '/admin/rooms', label: 'Room Manager', icon: FileText },
+        { to: '/admin/sections', label: 'Section Manager', icon: FileText },
+        { to: '/admin/faculty-subjects', label: 'Faculty Qualifications', icon: Award },
+      ],
+    },
+    {
       title: 'Administration',
       items: [
         { to: '/profile', label: 'My Profile', icon: User },

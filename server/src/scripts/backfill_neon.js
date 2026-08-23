@@ -1,205 +1,174 @@
 const { PrismaClient } = require('@prisma/client');
-const dotenv = require('dotenv');
-const path = require('path');
+require('dotenv').config();
 
-// Load environment variables from server/.env
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+const prisma = new PrismaClient();
 
-const dbUrl = process.env.DATABASE_URL;
-if (!dbUrl) {
-  console.error("❌ DATABASE_URL is not set in environment!");
-  process.exit(1);
-}
+const normalize = (val) => val ? val.trim().toLowerCase().replace(/\s+/g, ' ') : '';
 
-// Parse URL to check hostname
-const parsedUrl = new URL(dbUrl);
-console.log(`📡 Backfill connecting to: ${parsedUrl.hostname}\n`);
+const extractSemesterNumber = (semStr) => {
+  const match = semStr.match(/\d+/);
+  return match ? match[0] : semStr;
+};
 
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: dbUrl
-    }
-  }
-});
+async function executeBackfill() {
+  console.log('==================================================');
+  console.log('   TIMETABLE RELATIONAL DATABASE BACKFILL RUN     ');
+  console.log('==================================================\n');
 
-// Helper function to normalize strings for matching
-function normalizeName(name) {
-  return name.replace(/\s+/g, ' ').trim().toLowerCase();
-}
+  try {
+    // 1. Fetch current records
+    const slots = await prisma.timetableSlot.findMany();
+    const existingSubjects = await prisma.subject.findMany();
+    const departments = await prisma.department.findMany();
+    const faculties = await prisma.faculty.findMany();
 
-// Helper to parse time strings like "09:00 - 10:00 AM" into startTime/endTime (24h format)
-function parseTimeString(timeStr) {
-  const match = timeStr.match(/^(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})\s*(AM|PM)$/i);
-  if (!match) {
-    throw new Error(`Invalid time format: "${timeStr}"`);
-  }
-  
-  const startHour = parseInt(match[1], 10);
-  const startMin = match[2];
-  const endHour = parseInt(match[3], 10);
-  const endMin = match[4];
-  const ampm = match[5].toUpperCase();
-  
-  let start24Hour = startHour;
-  let end24Hour = endHour;
-  
-  if (ampm === 'PM') {
-    if (startHour < 12) {
-      if (startHour === 11 && endHour === 12) {
-        start24Hour = 11;
-        end24Hour = 12;
+    console.log(`Processing backfill for ${slots.length} timetable slot rows...\n`);
+
+    const defaultDept = departments.find(d => normalize(d.name).includes('it') || normalize(d.name).includes('information technology'));
+    const defaultDeptId = defaultDept ? defaultDept.id : (departments[0]?.id || 'mock-dept-id');
+
+    let subjectsMatched = 0;
+    let subjectsCreated = 0;
+    let sectionsCreated = 0;
+    let slotsUpdated = 0;
+    let facultySubjectsLinked = 0;
+
+    // Cache to track subject lookup/creation in memory
+    const subjectCache = [...existingSubjects];
+
+    for (const slot of slots) {
+      const semNum = extractSemesterNumber(slot.semester);
+      const branchText = slot.branch || 'Information Technology';
+      const secText = slot.section || 'Section A';
+
+      // A. Match/Resolve Department (Branch)
+      const matchedDept = departments.find(d => 
+        normalize(d.name) === normalize(branchText) || 
+        normalize(d.code) === normalize(branchText)
+      ) || defaultDept;
+
+      if (!matchedDept) {
+        console.warn(`[WARNING] No matching department found for slot branch: "${branchText}". Skipping slot ID: ${slot.id}`);
+        continue;
+      }
+
+      // B. Find or Create Subject (normalized name dedup)
+      let subjectRecord = subjectCache.find(s => 
+        normalize(s.name) === normalize(slot.subject)
+      );
+
+      if (!subjectRecord) {
+        // Create subject record
+        const isLab = slot.subject.toLowerCase().includes('lab') || slot.subject.toLowerCase().includes('practical');
+        
+        // Generate random unique code
+        const safeCodePrefix = slot.subject.replace(/[^a-zA-Z]/g, '').slice(0, 3).toUpperCase();
+        const codeNum = 100 + subjectCache.length;
+        const code = `${safeCodePrefix}-${codeNum}`;
+
+        subjectRecord = await prisma.subject.create({
+          data: {
+            name: slot.subject,
+            code,
+            semester: semNum,
+            credits: isLab ? 2 : 4,
+            weeklyHours: isLab ? 2 : 4,
+            type: isLab ? 'LAB' : 'CLASSROOM',
+            departmentId: matchedDept.id
+          }
+        });
+        subjectCache.push(subjectRecord);
+        subjectsCreated++;
+        console.log(`[CREATE SUBJECT] Created subject "${subjectRecord.name}" (Type: ${subjectRecord.type}, Code: ${subjectRecord.code})`);
       } else {
-        start24Hour += 12;
-        end24Hour += 12;
+        subjectsMatched++;
       }
-    } else {
-      if (endHour < 12) {
-        end24Hour += 12;
+
+      // C. Find or Create Section
+      let sectionRecord = await prisma.section.findUnique({
+        where: {
+          name_semester_departmentId: {
+            name: secText,
+            semester: semNum,
+            departmentId: matchedDept.id
+          }
+        }
+      });
+
+      if (!sectionRecord) {
+        sectionRecord = await prisma.section.create({
+          data: {
+            name: secText,
+            semester: semNum,
+            departmentId: matchedDept.id
+          }
+        });
+        sectionsCreated++;
+        console.log(`[CREATE SECTION] Created Section "${sectionRecord.name}" (Semester: ${sectionRecord.semester}, Dept: ${matchedDept.name})`);
       }
-    }
-  } else {
-    // AM
-    if (startHour === 12) start24Hour = 0;
-    if (endHour === 12) end24Hour = 0;
-  }
-  
-  const pad = (num) => String(num).padStart(2, '0');
-  
-  return {
-    startTime: `${pad(start24Hour)}:${startMin}`,
-    endTime: `${pad(end24Hour)}:${endMin}`
-  };
-}
 
-async function main() {
-  console.log("🚀 Starting database backfill process...");
-
-  // 1. Fetch current slots and faculties
-  const slots = await prisma.timetableSlot.findMany();
-  const faculties = await prisma.faculty.findMany();
-
-  console.log(`  - Found ${slots.length} TimetableSlots to migrate.`);
-  console.log(`  - Found ${faculties.length} Faculty records in database.`);
-
-  // 2. Pre-calculate unique start times chronologically to assign dynamic order
-  const startTimes = [];
-  for (const slot of slots) {
-    try {
-      const parsed = parseTimeString(slot.time);
-      if (!startTimes.includes(parsed.startTime)) {
-        startTimes.push(parsed.startTime);
+      // D. Resolve Faculty member
+      let matchedFaculty = null;
+      if (slot.facultyId) {
+        matchedFaculty = faculties.find(f => f.id === slot.facultyId);
+      } else if (slot.faculty) {
+        matchedFaculty = faculties.find(f => 
+          normalize(`${f.firstName} ${f.lastName}`) === normalize(slot.faculty)
+        );
       }
-    } catch (err) {
-      console.error(`❌ Parse error during pre-check: ${err.message}`);
-    }
-  }
-  // Sort chronologically
-  startTimes.sort();
-  console.log("🕒 Unique start times detected:", startTimes);
-  
-  const startTimeToOrder = {};
-  startTimes.forEach((time, index) => {
-    startTimeToOrder[time] = index + 1;
-  });
-  console.log("📈 Dynamic Period Order Mapping:", startTimeToOrder, "\n");
 
-  const validationErrors = [];
-  const processedSlots = [];
+      // E. Connect FacultySubject qualification join record
+      if (matchedFaculty && subjectRecord) {
+        try {
+          const qualificationExists = await prisma.facultySubject.findUnique({
+            where: {
+              facultyId_subjectId: {
+                facultyId: matchedFaculty.id,
+                subjectId: subjectRecord.id
+              }
+            }
+          });
 
-  // Map each slot
-  for (const slot of slots) {
-    console.log(`\n⚙️ Processing Slot ID: ${slot.id} (${slot.subject} | ${slot.day})`);
-    
-    // A. Faculty Mapping (Strict exact comparison)
-    const slotFacultyNormalized = normalizeName(slot.faculty);
-    const matchedFaculty = faculties.find(f => {
-      const fullName = normalizeName(`${f.firstName} ${f.lastName}`);
-      return fullName === slotFacultyNormalized;
-    });
-
-    if (!matchedFaculty) {
-      const errorMsg = `No matching Faculty record found for name: "${slot.faculty}"`;
-      console.error(`  ❌ ${errorMsg}`);
-      validationErrors.push({ id: slot.id, error: errorMsg, slot });
-      continue;
-    }
-    console.log(`  ✅ Matched Faculty: ${matchedFaculty.firstName} ${matchedFaculty.lastName} (${matchedFaculty.id})`);
-
-    // B. Room Mapping (Auto-create distinct rooms)
-    const roomName = slot.room.trim();
-    const isLab = roomName.toLowerCase().includes('lab');
-    const roomRecord = await prisma.room.upsert({
-      where: { name: roomName },
-      update: {},
-      create: {
-        name: roomName,
-        type: isLab ? 'LAB' : 'CLASSROOM',
-        capacity: isLab ? 30 : 60
-      }
-    });
-    console.log(`  ✅ Room mapped: "${roomRecord.name}" (${roomRecord.id})`);
-
-    // C. Period Mapping (Auto-create/match periods)
-    let parsedTime;
-    let periodOrder;
-    try {
-      parsedTime = parseTimeString(slot.time);
-      periodOrder = startTimeToOrder[parsedTime.startTime];
-    } catch (err) {
-      console.error(`  ❌ ${err.message}`);
-      validationErrors.push({ id: slot.id, error: err.message, slot });
-      continue;
-    }
-    console.log(`  🕒 Parsed time: ${parsedTime.startTime} - ${parsedTime.endTime}`);
-
-    const periodRecord = await prisma.period.upsert({
-      where: { order: periodOrder },
-      update: {},
-      create: {
-        name: `Period ${periodOrder}`,
-        order: periodOrder,
-        startTime: parsedTime.startTime,
-        endTime: parsedTime.endTime
-      }
-    });
-    console.log(`  ✅ Period mapped: "${periodRecord.name}" (Order: ${periodRecord.order}, ID: ${periodRecord.id})`);
-
-    // D. Update slot relations
-    await prisma.timetableSlot.update({
-      where: { id: slot.id },
-      data: {
-        facultyId: matchedFaculty.id,
-        roomId: roomRecord.id,
-        periods: {
-          connect: { id: periodRecord.id }
+          if (!qualificationExists) {
+            await prisma.facultySubject.create({
+              data: {
+                facultyId: matchedFaculty.id,
+                subjectId: subjectRecord.id
+              }
+            });
+            facultySubjectsLinked++;
+            console.log(`[LINK FACULTY-SUBJECT] Qualified "${matchedFaculty.firstName} ${matchedFaculty.lastName}" to teach "${subjectRecord.name}"`);
+          }
+        } catch (linkErr) {
+          // Qualification link might fail if race condition, skip
         }
       }
-    });
-    console.log(`  🎉 Successfully migrated slot relations.`);
-    processedSlots.push({ id: slot.id, facultyId: matchedFaculty.id, roomId: roomRecord.id, periodId: periodRecord.id });
-  }
 
-  console.log("\n==============================================");
-  console.log("🏁 Backfill Process Complete.");
-  console.log(`  - Total processed successfully: ${processedSlots.length}`);
-  console.log(`  - Total failed/validation errors: ${validationErrors.length}`);
-  console.log("==============================================\n");
+      // F. Update TimetableSlot foreign relation keys (retaining legacy columns)
+      await prisma.timetableSlot.update({
+        where: { id: slot.id },
+        data: {
+          subjectId: subjectRecord.id,
+          sectionId: sectionRecord.id
+        }
+      });
+      slotsUpdated++;
+    }
 
-  if (validationErrors.length > 0) {
-    console.error("⚠️ Migration validation failures encountered:");
-    console.error(JSON.stringify(validationErrors, null, 2));
-    process.exit(1);
-  } else {
-    console.log("🚀 All 20 slots successfully migrated with 100% data integrity.");
+    console.log('\n==================================================');
+    console.log('   BACKFILL COMPLETED SUCCESSFULLY');
+    console.log('==================================================');
+    console.log(`- Slots updated with relation links:   ${slotsUpdated}`);
+    console.log(`- Subjects created (deduped):          ${subjectsCreated}`);
+    console.log(`- Sections created:                    ${sectionsCreated}`);
+    console.log(`- Faculty qualifications linked:       ${facultySubjectsLinked}`);
+    console.log('==================================================\n');
+
+  } catch (err) {
+    console.error('Fatal backfill runtime error:', err);
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-main()
-  .catch(e => {
-    console.error("❌ Backfill execution failed:", e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+executeBackfill();

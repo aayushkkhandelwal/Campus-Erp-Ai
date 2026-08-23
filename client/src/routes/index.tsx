@@ -29,6 +29,10 @@ import { StudentFees } from '../pages/student/StudentFees';
 import { AITimetableGenerator } from '../pages/admin/AITimetableGenerator';
 import { AIReportGenerator } from '../pages/admin/AIReportGenerator';
 import { AINoticeGenerator } from '../pages/admin/AINoticeGenerator';
+import { SubjectManagement } from '../pages/admin/subjects/SubjectManagement';
+import { RoomManagement } from '../pages/admin/rooms/RoomManagement';
+import { SectionManagement } from '../pages/admin/sections/SectionManagement';
+import { FacultySubjectAssignment } from '../pages/admin/faculty-subjects/FacultySubjectAssignment';
 import { AIQuestionPaperGenerator } from '../pages/faculty/AIQuestionPaperGenerator';
 import { AIPerformanceAnalysis } from '../pages/faculty/AIPerformanceAnalysis';
 import { AIAssignmentChecker } from '../pages/faculty/AIAssignmentChecker';
@@ -73,10 +77,14 @@ export const router = createBrowserRouter([
       { path: 'faculty/edit/:id', element: <RoleGuard allowedRoles={['ADMIN']} fallback={<Navigate to="/dashboard" replace />}><EditFaculty /></RoleGuard> },
       { path: 'faculty/:id/edit', element: <RoleGuard allowedRoles={['ADMIN']} fallback={<Navigate to="/dashboard" replace />}><EditFaculty /></RoleGuard> },
       
-      // Admin AI Routes
+      // Admin AI & Management Routes
       { path: 'admin/ai-timetable', element: <RoleGuard allowedRoles={['ADMIN']} fallback={<Navigate to="/dashboard" replace />}><AITimetableGenerator /></RoleGuard> },
       { path: 'admin/ai-reports', element: <RoleGuard allowedRoles={['ADMIN']} fallback={<Navigate to="/dashboard" replace />}><AIReportGenerator /></RoleGuard> },
       { path: 'admin/ai-notices', element: <RoleGuard allowedRoles={['ADMIN']} fallback={<Navigate to="/dashboard" replace />}><AINoticeGenerator /></RoleGuard> },
+      { path: 'admin/subjects', element: <RoleGuard allowedRoles={['ADMIN']} fallback={<Navigate to="/dashboard" replace />}><SubjectManagement /></RoleGuard> },
+      { path: 'admin/rooms', element: <RoleGuard allowedRoles={['ADMIN']} fallback={<Navigate to="/dashboard" replace />}><RoomManagement /></RoleGuard> },
+      { path: 'admin/sections', element: <RoleGuard allowedRoles={['ADMIN']} fallback={<Navigate to="/dashboard" replace />}><SectionManagement /></RoleGuard> },
+      { path: 'admin/faculty-subjects', element: <RoleGuard allowedRoles={['ADMIN']} fallback={<Navigate to="/dashboard" replace />}><FacultySubjectAssignment /></RoleGuard> },
 
       // Faculty AI & Teaching Routes
       { path: 'faculty/attendance', element: <RoleGuard allowedRoles={['FACULTY', 'ADMIN']} fallback={<Navigate to="/dashboard" replace />}><MarkAttendance /></RoleGuard> },

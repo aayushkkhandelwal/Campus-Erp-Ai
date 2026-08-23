@@ -78,4 +78,14 @@ export const timetableService = {
   getStored(): PublishedTimetableData | null {
     return getStoredTimetable();
   },
+
+  async getPeriods() {
+    const response = await api.get('/timetable/periods');
+    return response.data?.data || response.data;
+  },
+
+  async updatePeriod(id: string, startTime: string, endTime: string) {
+    const response = await api.put(`/timetable/periods/${id}`, { startTime, endTime });
+    return response.data;
+  },
 };

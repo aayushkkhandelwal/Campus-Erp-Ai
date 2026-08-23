@@ -33,6 +33,7 @@ export const registerUser = async (data: RegisterInput, ipAddress?: string) => {
       phone: data.phone || null,
       role: data.role || 'STUDENT',
       status: 'ACTIVE',
+      collegeId: (data as any).collegeId || 'default-college-id',
     } as any,
   });
 
