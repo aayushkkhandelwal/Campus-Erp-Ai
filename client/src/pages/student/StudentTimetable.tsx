@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, CheckCircle2 } from 'lucide-react';
+import api from '../../services/api';
 import { timetableService } from '../../services/timetable.service';
 import { departmentService } from '../../services/department.service';
 import { sectionService } from '../../services/section.service';
-import { studentService } from '../../services/student.service';
 import { useAuth } from '../../context/AuthContext';
 import type { TimetableSlot } from '../../services/ai.service';
 
 export const StudentTimetable = () => {
   const { user } = useAuth();
+  const isStudent = user?.role === 'STUDENT';
   
   // Dynamic filter states
   const [selectedSemester, setSelectedSemester] = useState('Semester 5');
@@ -21,40 +22,42 @@ export const StudentTimetable = () => {
   const [isLive, setIsLive] = useState(false);
   const [showToast, setShowToast] = useState(false);
 
-  // 1. Fetch departments/branches dynamically
+  // 1. Fetch logged-in student's profile directly via GET /api/v1/students/me
+  const { data: studentProfile } = useQuery({
+    queryKey: ['student-me-profile', user?.email],
+    queryFn: async () => {
+      const response = await api.get('/students/me');
+      return response.data?.data || null;
+    },
+    enabled: isStudent,
+  });
+
+  // Auto-populate semester and department from the student's profile
+  useEffect(() => {
+    if (studentProfile) {
+      if (studentProfile.semester) {
+        const semClean = String(studentProfile.semester).replace(/semester/i, '').trim();
+        setSelectedSemester(`Semester ${semClean}`);
+      }
+      if (studentProfile.department?.name) {
+        setSelectedBranch(studentProfile.department.name);
+      }
+    }
+  }, [studentProfile]);
+
+  // 2. Fetch departments/branches dynamically (for Admin/Faculty lookup)
   const { data: departments = [] } = useQuery({
     queryKey: ['departments-list'],
     queryFn: () => departmentService.getAll().then(res => res.data || []),
+    enabled: !isStudent,
   });
 
-  // 2. Fetch sections dynamically
+  // 3. Fetch sections dynamically (for Admin/Faculty lookup)
   const { data: sections = [] } = useQuery({
     queryKey: ['sections-list'],
     queryFn: () => sectionService.getAll(),
+    enabled: !isStudent,
   });
-
-  // 3. Query student details to initialize defaults if user is STUDENT
-  const { data: studentsData } = useQuery({
-    queryKey: ['students-profile-list'],
-    queryFn: () => studentService.getAll({ page: 1, limit: 100 }),
-    enabled: user?.role === 'STUDENT',
-  });
-
-  const studentRecord = studentsData?.data?.find(
-    (s) => s.email?.toLowerCase() === user?.email?.toLowerCase()
-  );
-
-  // Initialize student defaults when loaded
-  useEffect(() => {
-    if (studentRecord) {
-      if (studentRecord.semester) {
-        setSelectedSemester(`Semester ${studentRecord.semester}`);
-      }
-      if (studentRecord.department?.name) {
-        setSelectedBranch(studentRecord.department.name);
-      }
-    }
-  }, [studentRecord]);
 
   // Compute available sections based on active department & semester selection
   const currentDept = departments.find((d: any) => d.name === selectedBranch);
@@ -66,15 +69,15 @@ export const StudentTimetable = () => {
     (!currentDeptId || s.departmentId === currentDeptId)
   );
 
-  // Automatically adjust selectedSection if it falls out of the filtered sections scope
+  // Automatically adjust selectedSection if it falls out of the filtered sections scope (Admin/Faculty only)
   useEffect(() => {
-    if (sectionsForCurrentFilters.length > 0) {
+    if (!isStudent && sectionsForCurrentFilters.length > 0) {
       const match = sectionsForCurrentFilters.find((s: any) => s.name === selectedSection);
       if (!match) {
         setSelectedSection(sectionsForCurrentFilters[0].name);
       }
     }
-  }, [selectedSemester, selectedBranch, sectionsForCurrentFilters]);
+  }, [isStudent, selectedSemester, selectedBranch, sectionsForCurrentFilters]);
 
   // Fetch timetable slots matching selected semester
   useEffect(() => {
@@ -165,15 +168,13 @@ export const StudentTimetable = () => {
     },
   ];
 
-  // Filter published slots for the selected branch & section
+  // Client-side filter: Match slots by branch (if defined on the slot) without strict section filtering
   const filteredPublishedSlots = publishedSlots.filter((slot) => {
     const slotBranch = slot.branch ? slot.branch.trim().toLowerCase() : '';
     const selectedBranchLower = selectedBranch.trim().toLowerCase();
 
-    const slotSection = slot.section ? slot.section.trim().toLowerCase() : '';
-    const selectedSectionLower = selectedSection.trim().toLowerCase();
-
-    return slotBranch === selectedBranchLower && slotSection === selectedSectionLower;
+    // If slot has a branch, match against selectedBranch; otherwise accept semester-matched slot
+    return !slotBranch || !selectedBranchLower || slotBranch === selectedBranchLower;
   });
 
   const formatTimeTo12h = (time24: string) => {
@@ -211,7 +212,20 @@ export const StudentTimetable = () => {
 
   const getSlot = (dayName: string, col: any) => {
     if (isLive) {
-      return filteredPublishedSlots.find(s => s.day === dayName && (s.periodId === col.id || s.time === col.label));
+      return filteredPublishedSlots.find(s => {
+        const matchesDay = s.day ? s.day.toLowerCase() === dayName.toLowerCase() : true;
+        if (!matchesDay) return false;
+
+        // Match by periodId (precise relational match)
+        if (col.id && s.periodId && col.id === s.periodId) return true;
+
+        // Fallback matching by period name or time string
+        if (col.name && (s as any).period?.name === col.name) return true;
+        if (s.time === col.label) return true;
+        if (s.time && col.label && s.time.replace(/\s+/g, '').toLowerCase() === col.label.replace(/\s+/g, '').toLowerCase()) return true;
+
+        return false;
+      });
     } else {
       const dayData = defaultTimetable.find(d => d.day === dayName);
       if (!dayData) return null;
@@ -283,7 +297,7 @@ export const StudentTimetable = () => {
             Class Timetable
           </h1>
           <p className="text-xs font-semibold text-stone-500 dark:text-stone-400 mt-1 font-mono">
-            SKIT • {selectedBranch} • {selectedSemester} ({selectedSection})
+            SKIT • {selectedBranch} • {selectedSemester}
           </p>
         </div>
 
@@ -295,61 +309,82 @@ export const StudentTimetable = () => {
         )}
       </div>
 
-      {/* Filter Selection Panel */}
-      <div className="rounded-3xl border border-stone-200 dark:border-stone-850 bg-white dark:bg-stone-900 p-5 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="space-y-1.5">
-          <label className="block text-[10px] font-black uppercase tracking-wider text-stone-500 dark:text-stone-400">
-            Target Semester
-          </label>
-          <select
-            value={selectedSemester}
-            onChange={(e) => setSelectedSemester(e.target.value)}
-            className="w-full rounded-2xl border border-stone-200 bg-stone-50/50 px-4 py-2.5 text-xs font-bold text-stone-900 focus:border-amber-500 focus:outline-none dark:border-stone-800 dark:bg-stone-950/40 dark:text-white"
-          >
-            {['Semester 1', 'Semester 2', 'Semester 3', 'Semester 4', 'Semester 5', 'Semester 6', 'Semester 7', 'Semester 8'].map((sem) => (
-              <option key={sem} value={sem}>{sem}</option>
-            ))}
-          </select>
+      {/* Filter Selection Panel (Hidden for Students, Visible for Admin & Faculty) */}
+      {isStudent ? (
+        <div className="rounded-3xl border border-stone-200 dark:border-stone-850 bg-white dark:bg-stone-900 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400 font-bold">
+              <Calendar className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xs font-black uppercase tracking-wider text-stone-900 dark:text-white font-['Outfit']">
+                Enrolled Academic Schedule
+              </div>
+              <div className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 font-mono mt-0.5">
+                SKIT • {selectedBranch} • {selectedSemester}
+              </div>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 text-[10px] font-extrabold uppercase tracking-wider w-fit">
+            Auto-Synced with Enrollment
+          </span>
         </div>
+      ) : (
+        <div className="rounded-3xl border border-stone-200 dark:border-stone-850 bg-white dark:bg-stone-900 p-5 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <label className="block text-[10px] font-black uppercase tracking-wider text-stone-500 dark:text-stone-400">
+              Target Semester
+            </label>
+            <select
+              value={selectedSemester}
+              onChange={(e) => setSelectedSemester(e.target.value)}
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50/50 px-4 py-2.5 text-xs font-bold text-stone-900 focus:border-amber-500 focus:outline-none dark:border-stone-800 dark:bg-stone-950/40 dark:text-white"
+            >
+              {['Semester 1', 'Semester 2', 'Semester 3', 'Semester 4', 'Semester 5', 'Semester 6', 'Semester 7', 'Semester 8'].map((sem) => (
+                <option key={sem} value={sem}>{sem}</option>
+              ))}
+            </select>
+          </div>
 
-        <div className="space-y-1.5">
-          <label className="block text-[10px] font-black uppercase tracking-wider text-stone-500 dark:text-stone-400">
-            Branch (Department)
-          </label>
-          <select
-            value={selectedBranch}
-            onChange={(e) => setSelectedBranch(e.target.value)}
-            className="w-full rounded-2xl border border-stone-200 bg-stone-50/50 px-4 py-2.5 text-xs font-bold text-stone-900 focus:border-amber-500 focus:outline-none dark:border-stone-800 dark:bg-stone-950/40 dark:text-white"
-          >
-            {departments.length > 0 ? (
-              departments.map((d: any) => (
-                <option key={d.id} value={d.name}>{d.name}</option>
-              ))
-            ) : (
-              <option value="Information Technology">Information Technology</option>
-            )}
-          </select>
-        </div>
+          <div className="space-y-1.5">
+            <label className="block text-[10px] font-black uppercase tracking-wider text-stone-500 dark:text-stone-400">
+              Branch (Department)
+            </label>
+            <select
+              value={selectedBranch}
+              onChange={(e) => setSelectedBranch(e.target.value)}
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50/50 px-4 py-2.5 text-xs font-bold text-stone-900 focus:border-amber-500 focus:outline-none dark:border-stone-800 dark:bg-stone-950/40 dark:text-white"
+            >
+              {departments.length > 0 ? (
+                departments.map((d: any) => (
+                  <option key={d.id} value={d.name}>{d.name}</option>
+                ))
+              ) : (
+                <option value="Information Technology">Information Technology</option>
+              )}
+            </select>
+          </div>
 
-        <div className="space-y-1.5">
-          <label className="block text-[10px] font-black uppercase tracking-wider text-stone-500 dark:text-stone-400">
-            Section
-          </label>
-          <select
-            value={selectedSection}
-            onChange={(e) => setSelectedSection(e.target.value)}
-            className="w-full rounded-2xl border border-stone-200 bg-stone-50/50 px-4 py-2.5 text-xs font-bold text-stone-900 focus:border-amber-500 focus:outline-none dark:border-stone-800 dark:bg-stone-950/40 dark:text-white"
-          >
-            {sectionsForCurrentFilters.length > 0 ? (
-              sectionsForCurrentFilters.map((s: any) => (
-                <option key={s.id} value={s.name}>{s.name}</option>
-              ))
-            ) : (
-              <option value="Section A">Section A</option>
-            )}
-          </select>
+          <div className="space-y-1.5">
+            <label className="block text-[10px] font-black uppercase tracking-wider text-stone-500 dark:text-stone-400">
+              Section
+            </label>
+            <select
+              value={selectedSection}
+              onChange={(e) => setSelectedSection(e.target.value)}
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50/50 px-4 py-2.5 text-xs font-bold text-stone-900 focus:border-amber-500 focus:outline-none dark:border-stone-800 dark:bg-stone-950/40 dark:text-white"
+            >
+              {sectionsForCurrentFilters.length > 0 ? (
+                sectionsForCurrentFilters.map((s: any) => (
+                  <option key={s.id} value={s.name}>{s.name}</option>
+                ))
+              ) : (
+                <option value="Section A">Section A</option>
+              )}
+            </select>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="overflow-x-auto border border-stone-200 dark:border-stone-850 rounded-3xl shadow-sm bg-white dark:bg-stone-900">
         <table className="w-full border-collapse text-center text-xs">
@@ -416,4 +451,3 @@ export const StudentTimetable = () => {
 };
 
 export default StudentTimetable;
-

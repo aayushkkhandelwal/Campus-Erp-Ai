@@ -3,6 +3,7 @@ import {
   addStudent,
   checkStudentEmail,
   editStudent,
+  getMe,
   listStudents,
   previewNextId,
   removeStudent,
@@ -12,6 +13,9 @@ import { requireRole } from '../../middlewares/auth.middleware';
 import { enforceStudentOwnership } from '../../middlewares/objectAccess.middleware';
 
 const router = Router();
+
+// Current logged-in student's profile (accessible to any authenticated student)
+router.get('/me', getMe);
 
 // Admins & Faculty can list all students
 router.get('/', requireRole('ADMIN', 'FACULTY'), listStudents);

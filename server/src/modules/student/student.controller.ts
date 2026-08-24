@@ -10,6 +10,43 @@ import {
   updateStudent,
 } from './student.service';
 
+export const getMe = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.email) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const student = await prisma.student.findUnique({
+      where: { email: req.user.email },
+      include: {
+        department: {
+          select: { id: true, name: true, code: true }
+        }
+      }
+    });
+
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student profile record not found' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: student.id,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        studentId: student.studentId,
+        semester: student.semester,
+        department: student.department
+          ? { id: student.department.id, name: student.department.name, code: student.department.code }
+          : null,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to fetch student profile' });
+  }
+};
+
 export const listStudents = async (_req: AuthRequest, res: Response) => {
   try {
     const students = await getStudents();

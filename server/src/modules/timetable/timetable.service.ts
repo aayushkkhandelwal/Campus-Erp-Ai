@@ -323,6 +323,7 @@ export const getTimetable = async (collegeId: string, semester?: string) => {
 
     return {
       id: slot.id,
+      day: slot.day,
       semester: timetableSemester,
       branch: timetableBranch,
       status: slot.status,
@@ -334,6 +335,9 @@ export const getTimetable = async (collegeId: string, semester?: string) => {
       classroomId: slot.classroomId,
       roomId: slot.classroomId, // Backwards compatibility for UI
       timetableId: slot.timetableId,
+      periodId: slot.periods?.[0]?.id || null,
+      periods: slot.periods,
+      type: slot.subjectRelation?.type || 'THEORY',
       
       // Relational resolved fields:
       subject: slot.subjectRelation ? slot.subjectRelation.name : slot.subject,
