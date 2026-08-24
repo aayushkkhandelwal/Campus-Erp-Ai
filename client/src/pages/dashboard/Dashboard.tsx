@@ -186,7 +186,23 @@ export const Dashboard = () => {
     .filter((slot) => slot.day === activeDayName)
     .sort((a, b) => parseStartTime(a.time) - parseStartTime(b.time));
 
-  const facultyAssignedSubjects = Array.from(new Set(facultyAllSlots.map((s) => s.subject))).filter(Boolean);
+  const relationalFacultySubjects = (facultyProfile?.FacultySubject || [])
+    .map((fs: any) => ({
+      name: fs.subject?.name || '',
+      code: fs.subject?.code || '',
+      semester: fs.subject?.semester || '',
+      credits: fs.subject?.credits || 4,
+    }))
+    .filter((s: any) => s.name);
+
+  const timetableFacultySubjectNames = Array.from(new Set(facultyAllSlots.map((s) => s.subject))).filter(Boolean);
+
+  const combinedFacultySubjects = [
+    ...relationalFacultySubjects,
+    ...timetableFacultySubjectNames
+      .filter((name) => !relationalFacultySubjects.some((r: any) => r.name.toLowerCase() === name.toLowerCase()))
+      .map((name) => ({ name, code: '', semester: '', credits: 4 })),
+  ];
 
   // 2. Live Student Filtering
   const studentTodaySlots = publishedSlots.filter((slot) => {
@@ -297,11 +313,11 @@ export const Dashboard = () => {
               </div>
             </div>
             <div className="text-3xl font-black text-slate-900 dark:text-white font-['Outfit']">
-              {facultyAssignedSubjects.length} {facultyAssignedSubjects.length === 1 ? 'Subject' : 'Subjects'}
+              {combinedFacultySubjects.length} {combinedFacultySubjects.length === 1 ? 'Subject' : 'Subjects'}
             </div>
             <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
-              {facultyAssignedSubjects.length > 0
-                ? facultyAssignedSubjects.join(', ')
+              {combinedFacultySubjects.length > 0
+                ? combinedFacultySubjects.map((s) => s.name).join(', ')
                 : (facultyProfile?.specialization || 'No subjects currently assigned')}
             </p>
           </div>
@@ -386,8 +402,8 @@ export const Dashboard = () => {
                         </div>
                       </div>
                       <Link
-                        to="/faculty/attendance"
-                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xs font-black shadow-md cursor-pointer shrink-0"
+                        to={`/faculty/attendance?subject=${encodeURIComponent(slot.subject)}&room=${encodeURIComponent(slot.room)}&slotId=${encodeURIComponent(slot.id || '')}`}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xs font-black shadow-md cursor-pointer shrink-0 hover:scale-[1.02] active:scale-[0.98] transition-all"
                       >
                         Mark Present
                       </Link>
@@ -405,19 +421,28 @@ export const Dashboard = () => {
               Assigned Subjects
             </h3>
             <div className="space-y-2.5">
-              {facultyAssignedSubjects.length === 0 ? (
+              {combinedFacultySubjects.length === 0 ? (
                 <div className="p-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-xs text-slate-400">
                   {facultyProfile?.specialization
                     ? `Specialization: ${facultyProfile.specialization}`
-                    : 'No assigned subjects in the active timetable.'}
+                    : 'No assigned subjects in your profile or timetable.'}
                 </div>
               ) : (
-                facultyAssignedSubjects.map((subj, idx) => (
+                combinedFacultySubjects.map((subj, idx) => (
                   <div key={idx} className="p-3 rounded-2xl border border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-extrabold text-slate-900 dark:text-white">{subj}</span>
-                      <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-md">Assigned</span>
+                      <span className="text-xs font-extrabold text-slate-900 dark:text-white">
+                        {subj.name} {subj.code ? `(${subj.code})` : ''}
+                      </span>
+                      <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-md">
+                        {subj.semester ? `Sem ${subj.semester}` : 'Assigned'}
+                      </span>
                     </div>
+                    {subj.credits && (
+                      <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-1">
+                        {subj.credits} Credits • Active Course
+                      </p>
+                    )}
                   </div>
                 ))
               )}

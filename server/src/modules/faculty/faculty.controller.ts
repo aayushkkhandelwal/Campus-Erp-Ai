@@ -16,14 +16,64 @@ export const getMe = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
 
-    const faculty = await prisma.faculty.findUnique({
+    let faculty = await prisma.faculty.findUnique({
       where: { email: req.user.email },
       include: {
         department: {
-          select: { id: true, name: true, code: true }
-        }
-      }
+          select: { id: true, name: true, code: true },
+        },
+        FacultySubject: {
+          include: {
+            subject: {
+              select: { id: true, name: true, code: true, semester: true, credits: true },
+            },
+          },
+        },
+        timetableSlots: {
+          include: {
+            subjectRelation: true,
+            periods: true,
+            classroomRelation: true,
+            sectionRelation: true,
+            timetableRelation: true,
+          },
+        },
+      },
     });
+
+    // Fallback: match by full name if email differs
+    if (!faculty && req.user?.fullName) {
+      const parts = req.user.fullName.trim().split(/\s+/);
+      const first = parts[0];
+      const last = parts.slice(1).join(' ');
+      faculty = await prisma.faculty.findFirst({
+        where: {
+          firstName: { equals: first, mode: 'insensitive' },
+          ...(last ? { lastName: { equals: last, mode: 'insensitive' } } : {}),
+        },
+        include: {
+          department: {
+            select: { id: true, name: true, code: true },
+          },
+          FacultySubject: {
+            include: {
+              subject: {
+                select: { id: true, name: true, code: true, semester: true, credits: true },
+              },
+            },
+          },
+          timetableSlots: {
+            include: {
+              subjectRelation: true,
+              periods: true,
+              classroomRelation: true,
+              sectionRelation: true,
+              timetableRelation: true,
+            },
+          },
+        },
+      });
+    }
 
     if (!faculty) {
       return res.status(404).json({ success: false, message: 'Faculty profile not found' });

@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { CheckSquare, Check, X, Save, UserCheck, Edit3, RefreshCw, Eye, Clock, CalendarCheck, AlertCircle, Lock, Unlock, CheckCircle2 } from 'lucide-react';
 import { attendanceService, type StudentAttendanceItem } from '../../services/attendance.service';
 import { studentService } from '../../services/student.service';
 import { timetableService } from '../../services/timetable.service';
 import { type TimetableSlot } from '../../services/ai.service';
 import { useAuth } from '../../context/AuthContext';
+import api from '../../services/api';
 import { IndividualAttendanceModal, type IndividualStudentData } from '../../components/attendance/IndividualAttendanceModal';
 
 export const MarkAttendance = () => {
   const { user } = useAuth();
   const role = user?.role || 'FACULTY';
+  const [searchParams] = useSearchParams();
+  const paramSubject = searchParams.get('subject');
+  const paramSlotId = searchParams.get('slotId');
 
-  const [subject, setSubject] = useState('DBMS (CS-501)');
+  const [subject, setSubject] = useState(paramSubject || '');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,12 +27,31 @@ export const MarkAttendance = () => {
   const [students, setStudents] = useState<StudentAttendanceItem[]>([]);
 
   // Timetable Slot Integration
-   const [activeSlot, setActiveSlot] = useState<TimetableSlot | null>(null);
+  const [activeSlot, setActiveSlot] = useState<TimetableSlot | null>(null);
   const [manualOverride, setManualOverride] = useState(false);
   const [todayDayName, setTodayDayName] = useState('');
   const [showToast, setShowToast] = useState(false);
+  const [facultyProfile, setFacultyProfile] = useState<any>(null);
+  const [assignedSubjectList, setAssignedSubjectList] = useState<{ name: string; code?: string; semester?: string }[]>([]);
 
   const isReadOnly = isFinalized && role !== 'ADMIN' && !adminUnlocked;
+
+  // Load faculty profile
+  useEffect(() => {
+    const fetchFacultyProfile = async () => {
+      if (role === 'FACULTY') {
+        try {
+          const res = await api.get('/faculty/me');
+          if (res.data?.data) {
+            setFacultyProfile(res.data.data);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+    fetchFacultyProfile();
+  }, [role]);
 
   useEffect(() => {
     let currentHash = '';
@@ -57,17 +81,68 @@ export const MarkAttendance = () => {
       }
       currentHash = newHash;
 
-      const todaySlots = slots.filter((s) => s.day === targetDay || s.day === currentDay);
+      // Extract all assigned subjects for this faculty from profile and published timetable
+      const facId = facultyProfile?.id;
+      const facFullName = facultyProfile ? `${facultyProfile.firstName} ${facultyProfile.lastName}`.trim().toLowerCase() : '';
+      const userFullName = (user?.fullName || '').trim().toLowerCase();
+
+      const myAllSlots = slots.filter((s) => {
+        if (facId && s.facultyId && s.facultyId === facId) return true;
+        const slotFac = (s.faculty || '').trim().toLowerCase();
+        if (facFullName && slotFac.includes(facFullName)) return true;
+        if (userFullName && slotFac.includes(userFullName)) return true;
+        return false;
+      });
+
+      const relationalSubjects = (facultyProfile?.FacultySubject || []).map((fs: any) => ({
+        name: fs.subject?.name || '',
+        code: fs.subject?.code || '',
+        semester: fs.subject?.semester || '',
+      })).filter((s: any) => s.name);
+
+      const timetableSubjectNames = Array.from(new Set(myAllSlots.map((s) => s.subject))).filter(Boolean);
+
+      const combinedSubjects = [
+        ...relationalSubjects,
+        ...timetableSubjectNames
+          .filter((name) => !relationalSubjects.some((r: any) => r.name.toLowerCase() === name.toLowerCase()))
+          .map((name) => ({ name, code: '', semester: '' })),
+      ];
+
+      setAssignedSubjectList(combinedSubjects);
+
+      // Filter today's slots strictly assigned to this faculty
+      const todaySlots = myAllSlots.filter((s) => s.day === targetDay || s.day === currentDay);
+
+      if (paramSlotId) {
+        const found = todaySlots.find((s) => s.id === paramSlotId) || myAllSlots.find((s) => s.id === paramSlotId);
+        if (found) {
+          setActiveSlot(found);
+          setSubject(found.subject);
+          return;
+        }
+      }
+
+      if (paramSubject) {
+        const found = todaySlots.find((s) => s.subject.toLowerCase() === paramSubject.toLowerCase());
+        if (found) {
+          setActiveSlot(found);
+          setSubject(found.subject);
+        } else {
+          setActiveSlot(null);
+          setSubject(paramSubject);
+        }
+        return;
+      }
 
       if (todaySlots.length > 0) {
-        const facultyName = user?.fullName || 'Dr. Robert Langdon';
-        const facultySlot = todaySlots.find((s) => s.faculty?.toLowerCase().includes(facultyName.toLowerCase())) || todaySlots[0];
-        setActiveSlot(facultySlot);
-        if (facultySlot?.subject) {
-          setSubject(facultySlot.subject);
-        }
+        setActiveSlot(todaySlots[0]);
+        setSubject(todaySlots[0].subject);
       } else {
         setActiveSlot(null);
+        if (combinedSubjects.length > 0) {
+          setSubject((curr) => curr || combinedSubjects[0].name);
+        }
       }
     };
 
@@ -78,9 +153,10 @@ export const MarkAttendance = () => {
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user, facultyProfile, paramSubject, paramSlotId]);
 
   useEffect(() => {
+    if (!subject) return;
     const loadBatch = async () => {
       const existing = await attendanceService.getBatch(subject, date);
       if (existing && existing.length > 0) {
@@ -253,11 +329,15 @@ export const MarkAttendance = () => {
                   onChange={(e) => setSubject(e.target.value)}
                   className="w-full rounded-2xl border border-amber-200 bg-amber-50/40 px-4 py-2.5 text-sm text-stone-900 focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 font-semibold disabled:opacity-60"
                 >
-                  <option value="DBMS (CS-501)">DBMS (CS-501) - Sem 5</option>
-                  <option value="Operating Systems (CS-502)">Operating Systems (CS-502) - Sem 5</option>
-                  <option value="Computer Networks (CS-503)">Computer Networks (CS-503) - Sem 5</option>
-                  <option value="Software Engineering (CS-504)">Software Engineering (CS-504) - Sem 5</option>
-                  <option value="Java Programming (CS-303)">Java Programming (CS-303) - Sem 3</option>
+                  {assignedSubjectList.length > 0 ? (
+                    assignedSubjectList.map((s, idx) => (
+                      <option key={idx} value={s.name}>
+                        {s.name} {s.code ? `(${s.code})` : ''} {s.semester ? `- Sem ${s.semester}` : ''}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">No Subjects Assigned</option>
+                  )}
                 </select>
               )}
             </div>

@@ -21,6 +21,7 @@ export interface QuestionItem {
 }
 
 export interface TimetableSlot {
+  id?: string;
   day: string;
   time: string;
   subject: string;
