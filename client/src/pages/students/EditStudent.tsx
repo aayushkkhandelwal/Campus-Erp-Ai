@@ -16,6 +16,9 @@ const studentSchema = z.object({
   dateOfBirth: z.string().min(1, 'Date of birth is required'),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
   phone: z.string().min(5, 'Valid phone number is required'),
+  fatherName: z.string().optional(),
+  fatherPhone: z.string().optional(),
+  section: z.string().min(1, 'Section is required'),
   address: z.string().min(5, 'Address is required'),
   departmentId: z.string().min(1, 'Department is required'),
   semester: z.string().min(1, 'Semester is required'),
@@ -62,6 +65,9 @@ export const EditStudent = () => {
         dateOfBirth: student.dateOfBirth ? student.dateOfBirth.split('T')[0] : '2003-04-15',
         gender: student.gender || 'FEMALE',
         phone: student.phone,
+        fatherName: student.fatherName || '',
+        fatherPhone: student.fatherPhone || '',
+        section: student.section || 'Section A',
         address: student.address,
         departmentId: student.departmentId || 'dept-1',
         semester: student.semester || '1',
@@ -171,6 +177,30 @@ export const EditStudent = () => {
                 </select>
                 <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400 pointer-events-none" />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-stone-700 dark:text-stone-300 mb-1.5">Section *</label>
+              <div className="relative">
+                <select {...register('section')} className="w-full appearance-none rounded-2xl border border-amber-200 bg-amber-50/40 px-4 py-2.5 pr-10 text-sm text-stone-900 focus:border-amber-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-amber-500/20 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100 cursor-pointer font-bold">
+                  <option value="Section A">Section A</option>
+                  <option value="Section B">Section B</option>
+                  <option value="Section C">Section C</option>
+                  <option value="Section D">Section D</option>
+                </select>
+                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400 pointer-events-none" />
+              </div>
+              {errors.section && <p className="mt-1 text-[11px] font-bold text-rose-500">{errors.section.message}</p>}
+            </div>
+
+            <div>
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-stone-700 dark:text-stone-300 mb-1.5">Father's Name</label>
+              <input {...register('fatherName')} placeholder="Enter father's full name" className="w-full rounded-2xl border border-amber-200 bg-amber-50/40 px-4 py-2.5 text-sm text-stone-900 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100" />
+            </div>
+
+            <div>
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-stone-700 dark:text-stone-300 mb-1.5">Father's Mobile Number</label>
+              <input {...register('fatherPhone')} placeholder="Enter father's contact number" className="w-full rounded-2xl border border-amber-200 bg-amber-50/40 px-4 py-2.5 text-sm text-stone-900 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-100" />
             </div>
 
             <div>

@@ -42,6 +42,9 @@ export interface Student {
   gender: 'MALE' | 'FEMALE' | 'OTHER';
   address: string;
   phone: string;
+  fatherName?: string | null;
+  fatherPhone?: string | null;
+  section?: string | null;
   enrollmentDate: string;
   semester?: string;
   status: 'ACTIVE' | 'INACTIVE' | 'GRADUATED' | 'SUSPENDED';

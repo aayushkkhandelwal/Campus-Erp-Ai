@@ -111,6 +111,9 @@ model Student {
   gender         String             @default("FEMALE")
   address        String
   phone          String
+  fatherName     String?
+  fatherPhone    String?
+  section        String?            @default("Section A")
   enrollmentDate String
   semester       String             @default("1")
   status         String             @default("ACTIVE")

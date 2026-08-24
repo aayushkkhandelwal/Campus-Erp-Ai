@@ -155,12 +155,22 @@ export const StudentList = () => {
                       {student.studentId}
                     </td>
                     <td className="py-3.5 px-4 font-extrabold text-slate-900 dark:text-white">
-                      {student.firstName} {student.lastName}
+                      <div>{student.firstName} {student.lastName}</div>
+                      {student.fatherName && (
+                        <div className="text-[10px] font-normal text-stone-400 dark:text-stone-500">
+                          S/D of {student.fatherName}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3.5 px-4">
-                      <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-black text-[11px] border border-indigo-200 dark:border-indigo-800">
-                        Sem {student.semester || '1'}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-black text-[11px] border border-indigo-200 dark:border-indigo-800 w-fit">
+                          Sem {student.semester || '1'}
+                        </span>
+                        <span className="text-[10px] font-bold text-stone-500 dark:text-stone-400">
+                          {student.section || 'Section A'}
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3.5 px-4">
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-indigo-300 font-bold border border-slate-200/60 dark:border-slate-700">
@@ -177,6 +187,11 @@ export const StudentList = () => {
                         <Phone className="h-3 w-3" />
                         <span>{student.phone}</span>
                       </div>
+                      {student.fatherPhone && (
+                        <div className="text-[10px] text-amber-700/80 dark:text-amber-400/80 font-medium">
+                          Father: {student.fatherPhone}
+                        </div>
+                      )}
                     </td>
 
                     {/* Interactive Status Dropdown */}

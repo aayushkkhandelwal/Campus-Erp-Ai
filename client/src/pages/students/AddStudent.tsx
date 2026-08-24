@@ -17,6 +17,9 @@ const studentSchema = z.object({
   dateOfBirth: z.string().min(1, 'Date of birth is required'),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER']),
   phone: z.string().min(5, 'Valid contact phone number is required'),
+  fatherName: z.string().optional(),
+  fatherPhone: z.string().optional(),
+  section: z.string().min(1, 'Academic section is required'),
   address: z.string().min(5, 'Residential address is required'),
   departmentId: z.string().min(1, 'Please select an academic department'),
   semester: z.string().min(1, 'Academic semester is required'),
@@ -59,6 +62,9 @@ export const AddStudent = () => {
       dateOfBirth: '',
       gender: '' as any,
       phone: '',
+      fatherName: '',
+      fatherPhone: '',
+      section: 'Section A',
       address: '',
       departmentId: '',
       semester: '1',
@@ -297,6 +303,54 @@ export const AddStudent = () => {
                 <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400 pointer-events-none" />
               </div>
               {errors.semester && <p className="mt-1 text-[11px] font-bold text-rose-500">{errors.semester.message}</p>}
+            </div>
+
+            {/* Section */}
+            <div>
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-stone-700 dark:text-stone-200 mb-1.5">
+                Section <span className="text-rose-500 font-bold">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  {...register('section')}
+                  className="w-full appearance-none rounded-2xl border border-amber-200 bg-amber-50/40 px-4 py-2.5 pr-10 text-sm text-stone-900 focus:border-amber-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-amber-500/20 dark:border-stone-600 dark:bg-[#111113] dark:text-white dark:placeholder:text-stone-500 dark:focus:border-emerald-500 dark:focus:ring-emerald-500/30 dark:focus:bg-[#111113] cursor-pointer font-bold"
+                >
+                  <option value="Section A">Section A</option>
+                  <option value="Section B">Section B</option>
+                  <option value="Section C">Section C</option>
+                  <option value="Section D">Section D</option>
+                </select>
+                <ChevronDown className="absolute right-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400 pointer-events-none" />
+              </div>
+              {errors.section && <p className="mt-1 text-[11px] font-bold text-rose-500">{errors.section.message}</p>}
+            </div>
+
+            {/* Father's Name */}
+            <div>
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-stone-700 dark:text-stone-200 mb-1.5">
+                Father's Name
+              </label>
+              <input
+                {...register('fatherName')}
+                type="text"
+                placeholder="Enter father's full name"
+                className="w-full rounded-2xl border border-amber-200 bg-amber-50/40 px-4 py-2.5 text-sm text-stone-900 focus:border-amber-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-amber-500/20 dark:border-stone-600 dark:bg-[#111113] dark:text-white dark:placeholder:text-stone-500 dark:focus:border-emerald-500 dark:focus:ring-emerald-500/30 dark:focus:bg-[#111113]"
+              />
+              {errors.fatherName && <p className="mt-1 text-[11px] font-bold text-rose-500">{errors.fatherName.message}</p>}
+            </div>
+
+            {/* Father's Mobile Number */}
+            <div>
+              <label className="block text-xs font-extrabold uppercase tracking-wider text-stone-700 dark:text-stone-200 mb-1.5">
+                Father's Mobile Number
+              </label>
+              <input
+                {...register('fatherPhone')}
+                type="text"
+                placeholder="Enter father's contact number"
+                className="w-full rounded-2xl border border-amber-200 bg-amber-50/40 px-4 py-2.5 text-sm text-stone-900 focus:border-amber-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-amber-500/20 dark:border-stone-600 dark:bg-[#111113] dark:text-white dark:placeholder:text-stone-500 dark:focus:border-emerald-500 dark:focus:ring-emerald-500/30 dark:focus:bg-[#111113]"
+              />
+              {errors.fatherPhone && <p className="mt-1 text-[11px] font-bold text-rose-500">{errors.fatherPhone.message}</p>}
             </div>
 
             {/* Student ID (Locked & Read-Only) */}

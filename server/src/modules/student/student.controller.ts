@@ -37,6 +37,9 @@ export const getMe = async (req: AuthRequest, res: Response) => {
         lastName: student.lastName,
         studentId: student.studentId,
         semester: student.semester,
+        section: student.section || 'Section A',
+        fatherName: student.fatherName || null,
+        fatherPhone: student.fatherPhone || null,
         department: student.department
           ? { id: student.department.id, name: student.department.name, code: student.department.code }
           : null,
