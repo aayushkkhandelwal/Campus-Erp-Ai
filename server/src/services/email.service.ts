@@ -21,18 +21,33 @@ class NodemailerSmtpDriver implements IEmailProvider {
     const pass = (process.env.SMTP_PASS || '').replace(/\s+/g, '');
     this.fromAddress = process.env.SMTP_FROM || `"College ERP System" <${user}>`;
 
-    this.transporter = nodemailer.createTransport({
-      host,
-      port,
-      secure: port === 465,
-      pool: true,
-      maxConnections: 5,
-      maxMessages: 100,
-      auth: {
-        user,
-        pass,
-      },
-    });
+    const isGmail = host.includes('gmail') || user.endsWith('@gmail.com');
+
+    if (isGmail) {
+      this.transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user,
+          pass,
+        },
+        connectionTimeout: 8000,
+        greetingTimeout: 5000,
+        socketTimeout: 10000,
+      });
+    } else {
+      this.transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: {
+          user,
+          pass,
+        },
+        connectionTimeout: 8000,
+        greetingTimeout: 5000,
+        socketTimeout: 10000,
+      });
+    }
   }
 
   async sendEmail(to: string, subject: string, bodyText: string, htmlContent?: string): Promise<boolean> {
