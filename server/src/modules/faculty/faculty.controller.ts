@@ -76,6 +76,57 @@ export const getMe = async (req: AuthRequest, res: Response) => {
     }
 
     if (!faculty) {
+      // Auto-provision faculty record for authenticated FACULTY user if missing
+      const firstDept = await prisma.department.findFirst({
+        where: req.user.collegeId ? { collegeId: req.user.collegeId } : {},
+      });
+      if (firstDept) {
+        const employeeId = await generateNextEmployeeId(firstDept.id, req.user.collegeId || undefined);
+        const nameParts = (req.user.fullName || 'Faculty User').trim().split(/\s+/);
+        const firstName = nameParts[0] || 'Faculty';
+        const lastName = nameParts.slice(1).join(' ') || 'Member';
+
+        faculty = await prisma.faculty.create({
+          data: {
+            firstName,
+            lastName,
+            email: req.user.email,
+            employeeId,
+            phone: req.user.phone || '9999999999',
+            designation: 'Assistant Professor',
+            qualification: 'Master of Technology',
+            specialization: 'Computer Science & IT',
+            joiningDate: new Date().toISOString().split('T')[0],
+            status: 'ACTIVE',
+            departmentId: firstDept.id,
+            collegeId: req.user.collegeId || firstDept.collegeId || 'default-college-id',
+          },
+          include: {
+            department: {
+              select: { id: true, name: true, code: true },
+            },
+            FacultySubject: {
+              include: {
+                subject: {
+                  select: { id: true, name: true, code: true, semester: true, credits: true },
+                },
+              },
+            },
+            timetableSlots: {
+              include: {
+                subjectRelation: true,
+                periods: true,
+                classroomRelation: true,
+                sectionRelation: true,
+                timetableRelation: true,
+              },
+            },
+          },
+        });
+      }
+    }
+
+    if (!faculty) {
       return res.status(404).json({ success: false, message: 'Faculty profile not found' });
     }
 
