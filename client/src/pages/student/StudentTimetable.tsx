@@ -219,6 +219,61 @@ export const StudentTimetable = () => {
     }
   };
 
+  // Helper to detect if a slot represents a lab/practical session
+  const isLabSlot = (slot: any) => {
+    if (!slot) return false;
+    if (slot.type && typeof slot.type === 'string' && (slot.type.toUpperCase() === 'LAB' || slot.type.toUpperCase() === 'PRACTICAL')) {
+      return true;
+    }
+    if (slot.subjectType && typeof slot.subjectType === 'string' && slot.subjectType.toUpperCase() === 'LAB') {
+      return true;
+    }
+    if (slot.subject && typeof slot.subject === 'string' && slot.subject.toUpperCase().includes('LAB')) {
+      return true;
+    }
+    return false;
+  };
+
+  // Check if two slots belong to the same consecutive lab session
+  const isSameLab = (slotA: any, slotB: any) => {
+    if (!slotA || !slotB) return false;
+    if (!isLabSlot(slotA) || !isLabSlot(slotB)) return false;
+    const subjA = (slotA.subject || '').trim().toLowerCase();
+    const subjB = (slotB.subject || '').trim().toLowerCase();
+    return subjA !== '' && subjA === subjB;
+  };
+
+  // Group row slots for a day into rendering cells with dynamic colSpan for consecutive matching labs
+  const getDayRowCells = (dayName: string) => {
+    const daySlots = timeColumns.map((col) => getSlot(dayName, col));
+    const cells: { colIndex: number; slot: any; colSpan: number }[] = [];
+    let i = 0;
+
+    while (i < timeColumns.length) {
+      const currentSlot = daySlots[i];
+      let span = 1;
+
+      if (currentSlot && isLabSlot(currentSlot)) {
+        while (
+          i + span < timeColumns.length &&
+          isSameLab(currentSlot, daySlots[i + span])
+        ) {
+          span++;
+        }
+      }
+
+      cells.push({
+        colIndex: i,
+        slot: currentSlot,
+        colSpan: span,
+      });
+
+      i += span;
+    }
+
+    return cells;
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -299,7 +354,7 @@ export const StudentTimetable = () => {
       <div className="overflow-x-auto border border-stone-200 dark:border-stone-850 rounded-3xl shadow-sm bg-white dark:bg-stone-900">
         <table className="w-full border-collapse text-center text-xs">
           <thead>
-            <tr className="bg-stone-50 dark:bg-stone-850/60 border-b border-stone-200 dark:border-stone-800 text-stone-700 dark:text-stone-300 font-extrabold uppercase tracking-wider font-['Outfit']">
+            <tr className="bg-stone-50 dark:bg-stone-850/60 border-b border-stone-200 dark:border-stone-850 text-stone-700 dark:text-stone-300 font-extrabold uppercase tracking-wider font-['Outfit']">
               <th className="py-4 px-3 border-r border-stone-200 dark:border-stone-800 w-20">Day</th>
               {timeColumns.map((col, idx) => (
                 <th key={idx} className="py-3 px-3 border-r border-stone-200 dark:border-stone-800 min-w-[140px]">
@@ -310,15 +365,19 @@ export const StudentTimetable = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-200 dark:divide-stone-800">
-            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((dayName) => (
-              <tr key={dayName} className="hover:bg-amber-50/5 dark:hover:bg-stone-850/5 transition-colors">
-                <td className="py-4 px-3 font-black text-amber-900 dark:text-amber-400 border-r border-stone-200 dark:border-stone-850 bg-stone-50/50 dark:bg-stone-950/20 text-xs font-['Outfit']">
-                  {DAY_SHORT[dayName] || dayName}
-                </td>
-                {timeColumns.map((col, idx) => {
-                  const slot = getSlot(dayName, col);
-                  return (
-                    <td key={idx} className="p-3 border-r border-stone-200 dark:border-stone-850 relative align-middle">
+            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((dayName) => {
+              const rowCells = getDayRowCells(dayName);
+              return (
+                <tr key={dayName} className="hover:bg-amber-50/5 dark:hover:bg-stone-850/5 transition-colors">
+                  <td className="py-4 px-3 font-black text-amber-900 dark:text-amber-400 border-r border-stone-200 dark:border-stone-850 bg-stone-50/50 dark:bg-stone-950/20 text-xs font-['Outfit']">
+                    {DAY_SHORT[dayName] || dayName}
+                  </td>
+                  {rowCells.map(({ colIndex, slot, colSpan }) => (
+                    <td
+                      key={colIndex}
+                      colSpan={colSpan > 1 ? colSpan : undefined}
+                      className="p-3 border-r border-stone-200 dark:border-stone-850 relative align-middle"
+                    >
                       {slot ? (
                         <div className="space-y-1 bg-amber-50/20 dark:bg-stone-800/20 p-2.5 rounded-xl border border-amber-100/40 dark:border-stone-750/30">
                           <div className="text-xs font-black text-stone-900 dark:text-white tracking-tight leading-tight">
@@ -330,7 +389,7 @@ export const StudentTimetable = () => {
                               {slot.room}
                             </span>
                             <span className="italic shrink-0 font-black text-amber-600 dark:text-amber-400">
-                              {slot.faculty.split(' ').map(n => n[0]).join('') || slot.faculty}
+                              {slot.faculty ? (slot.faculty.split(' ').map((n: string) => n[0]).join('') || slot.faculty) : ''}
                             </span>
                           </div>
                         </div>
@@ -338,10 +397,10 @@ export const StudentTimetable = () => {
                         <span className="text-[10px] text-stone-400 dark:text-stone-600 font-medium italic">-</span>
                       )}
                     </td>
-                  );
-                })}
-              </tr>
-            ))}
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
