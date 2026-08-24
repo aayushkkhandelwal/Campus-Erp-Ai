@@ -3,6 +3,7 @@ import {
   addFaculty,
   checkFacultyEmail,
   editFaculty,
+  getMe,
   listFaculties,
   previewNextEmployeeId,
   removeFaculty,
@@ -11,6 +12,9 @@ import {
 import { requireRole } from '../../middlewares/auth.middleware';
 
 const router = Router();
+
+// Current logged-in faculty profile
+router.get('/me', getMe);
 
 router.get('/', requireRole('ADMIN', 'FACULTY'), listFaculties);
 router.get('/check-email', requireRole('ADMIN', 'FACULTY'), checkFacultyEmail);

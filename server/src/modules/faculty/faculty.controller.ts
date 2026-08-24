@@ -10,6 +10,34 @@ import {
   updateFaculty,
 } from './faculty.service';
 
+export const getMe = async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.user?.email) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const faculty = await prisma.faculty.findUnique({
+      where: { email: req.user.email },
+      include: {
+        department: {
+          select: { id: true, name: true, code: true }
+        }
+      }
+    });
+
+    if (!faculty) {
+      return res.status(404).json({ success: false, message: 'Faculty profile not found' });
+    }
+
+    res.json({
+      success: true,
+      data: faculty,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Failed to fetch faculty profile' });
+  }
+};
+
 export const listFaculties = async (req: AuthRequest, res: Response) => {
   try {
     let collegeId: string | undefined;

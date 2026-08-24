@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -40,35 +41,8 @@ import { facultyService } from '../../services/faculty.service';
 import { departmentService } from '../../services/department.service';
 import { timetableService } from '../../services/timetable.service';
 import { noticeService } from '../../services/notice.service';
+import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-
-const DEFAULT_SCHEDULE_MAP: Record<string, Array<{ time: string; subject: string; room: string; faculty: string; section?: string }>> = {
-  Monday: [
-    { time: '09:00 - 10:00 AM', subject: 'DBMS (CS-501)', room: 'Room 201', faculty: 'Dr. Amit Sharma' },
-    { time: '10:00 - 11:00 AM', subject: 'Artificial Intelligence (CS-505)', room: 'Room 104', faculty: 'Dr. Robert Langdon' },
-    { time: '11:00 - 12:00 PM', subject: 'Computer Networks (CS-503)', room: 'Lab 2', faculty: 'Prof. Alan Turing' },
-  ],
-  Tuesday: [
-    { time: '09:00 - 10:00 AM', subject: 'Operating Systems (CS-502)', room: 'Lab 3', faculty: 'Dr. Sarah Jenkins' },
-    { time: '10:00 - 11:00 AM', subject: 'Software Engineering (CS-504)', room: 'Room 201', faculty: 'Dr. Robert Langdon' },
-    { time: '11:00 - 12:00 PM', subject: 'DBMS (CS-501)', room: 'Room 201', faculty: 'Dr. Amit Sharma' },
-  ],
-  Wednesday: [
-    { time: '09:00 - 11:00 AM', subject: 'DBMS Lab (CS-501L)', room: 'Lab 1', faculty: 'Dr. Amit Sharma' },
-    { time: '11:00 - 12:00 PM', subject: 'Computer Networks (CS-503)', room: 'Lab 2', faculty: 'Prof. Alan Turing' },
-    { time: '02:00 - 04:00 PM', subject: 'AI Lab (CS-505L)', room: 'Lab 4', faculty: 'Dr. Robert Langdon' },
-  ],
-  Thursday: [
-    { time: '09:00 - 10:00 AM', subject: 'Software Engineering (CS-504)', room: 'Room 201', faculty: 'Dr. Robert Langdon' },
-    { time: '10:00 - 11:00 AM', subject: 'Computer Networks (CS-503)', room: 'Lab 2', faculty: 'Prof. Alan Turing' },
-    { time: '11:00 - 12:00 PM', subject: 'DBMS (CS-501)', room: 'Room 201', faculty: 'Dr. Amit Sharma' },
-  ],
-  Friday: [
-    { time: '09:00 - 10:00 AM', subject: 'Artificial Intelligence (CS-505)', room: 'Room 104', faculty: 'Dr. Robert Langdon' },
-    { time: '10:00 - 11:00 AM', subject: 'Operating Systems (CS-502)', room: 'Lab 3', faculty: 'Dr. Sarah Jenkins' },
-    { time: '11:00 - 12:00 PM', subject: 'Software Engineering (CS-504)', room: 'Room 201', faculty: 'Dr. Robert Langdon' },
-  ],
-};
 
 const defaultEnrollmentData = [
   { year: '2022', students: 120 },
@@ -143,6 +117,34 @@ export const Dashboard = () => {
   const isWeekend = currentDayName === 'Saturday' || currentDayName === 'Sunday';
   const activeDayName = isWeekend ? 'Monday' : currentDayName;
 
+  // Fetch Faculty Profile if role === 'FACULTY'
+  const { data: facultyProfile } = useQuery({
+    queryKey: ['faculty-me-dashboard'],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/faculty/me');
+        return res.data?.data || null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: role === 'FACULTY',
+  });
+
+  // Fetch Student Profile if role === 'STUDENT'
+  const { data: studentProfile } = useQuery({
+    queryKey: ['student-me-dashboard'],
+    queryFn: async () => {
+      try {
+        const res = await api.get('/students/me');
+        return res.data?.data || null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: role === 'STUDENT',
+  });
+
   const { data: publishedSlots = [] } = useQuery({
     queryKey: ['published-timetable-dashboard'],
     queryFn: () => timetableService.getPublished(),
@@ -153,8 +155,6 @@ export const Dashboard = () => {
     queryKey: ['campus-notices-dashboard'],
     queryFn: () => noticeService.getAll(),
   });
-
-  const rawTodaySlots = publishedSlots.filter((s) => s.day === activeDayName);
 
   const parseStartTime = (timeStr: string): number => {
     const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
@@ -169,11 +169,38 @@ export const Dashboard = () => {
     return hours * 60 + minutes;
   };
 
-  const todaySlots = (
-    rawTodaySlots.length > 0
-      ? rawTodaySlots
-      : DEFAULT_SCHEDULE_MAP[activeDayName] || DEFAULT_SCHEDULE_MAP['Monday']
-  ).sort((a, b) => parseStartTime(a.time) - parseStartTime(b.time));
+  // 1. Live Faculty Filtering
+  const facultyAllSlots = publishedSlots.filter((slot) => {
+    const facId = facultyProfile?.id;
+    const facFullName = facultyProfile ? `${facultyProfile.firstName} ${facultyProfile.lastName}`.trim().toLowerCase() : '';
+    const userFullName = (user?.fullName || '').trim().toLowerCase();
+    const slotFaculty = (slot.faculty || '').trim().toLowerCase();
+
+    if (facId && slot.facultyId && slot.facultyId === facId) return true;
+    if (facFullName && slotFaculty.includes(facFullName)) return true;
+    if (userFullName && slotFaculty.includes(userFullName)) return true;
+    return false;
+  });
+
+  const facultyTodaySlots = facultyAllSlots
+    .filter((slot) => slot.day === activeDayName)
+    .sort((a, b) => parseStartTime(a.time) - parseStartTime(b.time));
+
+  const facultyAssignedSubjects = Array.from(new Set(facultyAllSlots.map((s) => s.subject))).filter(Boolean);
+
+  // 2. Live Student Filtering
+  const studentTodaySlots = publishedSlots.filter((slot) => {
+    if (slot.day !== activeDayName) return false;
+    if (studentProfile?.semester) {
+      const semClean = String(studentProfile.semester).replace(/semester/i, '').trim();
+      const slotSemClean = String(slot.semester || '').replace(/semester/i, '').trim();
+      if (slotSemClean && slotSemClean !== semClean) return false;
+    }
+    if (studentProfile?.department?.name && slot.branch) {
+      if (slot.branch.trim().toLowerCase() !== studentProfile.department.name.trim().toLowerCase()) return false;
+    }
+    return true;
+  }).sort((a, b) => parseStartTime(a.time) - parseStartTime(b.time));
 
   // Admin Data Queries
   const { data: studentData } = useQuery({
@@ -216,6 +243,11 @@ export const Dashboard = () => {
   // 1. FACULTY DASHBOARD VIEW
   // ---------------------------------------------------
   if (role === 'FACULTY') {
+    const facultyDisplayName = facultyProfile
+      ? `${facultyProfile.firstName} ${facultyProfile.lastName}`
+      : (user?.fullName || 'Faculty');
+    const facultyDeptName = facultyProfile?.department?.name || 'Academic Faculty';
+
     return (
       <div className="space-y-6">
         {/* Faculty Welcome Banner */}
@@ -224,13 +256,13 @@ export const Dashboard = () => {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3.5 py-1 text-xs font-bold backdrop-blur-md mb-3 border border-white/30">
                 <Sun className="h-3.5 w-3.5 text-amber-200" />
-                Faculty Portal • Computer Science Dept
+                Faculty Portal • {facultyDeptName}
               </div>
               <h1 className="text-2xl md:text-3xl font-black tracking-tight font-['Outfit']">
-                Welcome back, {user?.fullName || 'Dr. Amit Sharma'}! 👨‍🏫
+                Welcome back, {facultyDisplayName}! 👨‍🏫
               </h1>
               <p className="mt-1 text-sm text-indigo-100 font-medium">
-                Here is your teaching schedule, assigned subjects, and quick attendance tasks for today.
+                Here is your personalized teaching schedule, assigned subjects, and quick attendance tasks for today.
               </p>
             </div>
 
@@ -265,10 +297,12 @@ export const Dashboard = () => {
               </div>
             </div>
             <div className="text-3xl font-black text-slate-900 dark:text-white font-['Outfit']">
-              3 Subjects
+              {facultyAssignedSubjects.length} {facultyAssignedSubjects.length === 1 ? 'Subject' : 'Subjects'}
             </div>
-            <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-              DBMS, Operating Systems, Java Programming
+            <p className="mt-2 text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
+              {facultyAssignedSubjects.length > 0
+                ? facultyAssignedSubjects.join(', ')
+                : (facultyProfile?.specialization || 'No subjects currently assigned')}
             </p>
           </div>
 
@@ -282,27 +316,33 @@ export const Dashboard = () => {
               </div>
             </div>
             <div className="text-3xl font-black text-slate-900 dark:text-white font-['Outfit']">
-              2 Classes Scheduled
+              {facultyTodaySlots.length} {facultyTodaySlots.length === 1 ? 'Class' : 'Classes'} Scheduled
             </div>
-            <p className="mt-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-              <CheckCircle2 className="h-3.5 w-3.5" /> Next: DBMS at 09:00 AM (Room 201)
-            </p>
+            {facultyTodaySlots.length > 0 ? (
+              <p className="mt-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Next: {facultyTodaySlots[0].subject} at {facultyTodaySlots[0].time} ({facultyTodaySlots[0].room})
+              </p>
+            ) : (
+              <p className="mt-2 text-xs font-semibold text-slate-400 dark:text-slate-500">
+                No lectures scheduled for today
+              </p>
+            )}
           </div>
 
           <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Pending Grade Entry
+                Quick Action
               </span>
               <div className="p-2.5 rounded-2xl text-white bg-gradient-to-br from-rose-500 to-pink-600">
                 <FileSpreadsheet className="h-5 w-5" />
               </div>
             </div>
             <div className="text-3xl font-black text-slate-900 dark:text-white font-['Outfit']">
-              Mid-Sem Internal
+              Grade Entry
             </div>
             <p className="mt-2 text-xs font-bold text-amber-600 dark:text-amber-400">
-              45 Student Grade Sheets Pending
+              Attendance & Marks Portal Ready
             </p>
           </div>
         </div>
@@ -317,34 +357,44 @@ export const Dashboard = () => {
                 Today's Class Schedule ({activeDayName})
               </h3>
               <span className="text-xs font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 px-3 py-1 rounded-full">
-                Semester 5 & 3
+                {facultyTodaySlots.length} Assigned {facultyTodaySlots.length === 1 ? 'Lecture' : 'Lectures'}
               </span>
             </div>
 
             <div className="space-y-3">
-              {todaySlots.map((slot, idx) => {
-                const badgeColors = ['bg-indigo-600', 'bg-violet-600', 'bg-amber-500', 'bg-emerald-600'];
-                const badgeColor = badgeColors[idx % badgeColors.length];
-                return (
-                  <div key={idx} className="flex items-center justify-between p-4 rounded-2xl border border-slate-200/80 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/50">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-2xl ${badgeColor} text-white font-black text-xs shrink-0 shadow-sm`}>
-                        {slot.time}
+              {facultyTodaySlots.length === 0 ? (
+                <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850/50">
+                  <Clock className="h-8 w-8 text-slate-400 dark:text-slate-500 mx-auto mb-2 opacity-60" />
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No classes scheduled for today ({activeDayName})</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">You have no teaching lectures assigned on this day.</p>
+                </div>
+              ) : (
+                facultyTodaySlots.map((slot, idx) => {
+                  const badgeColors = ['bg-indigo-600', 'bg-violet-600', 'bg-amber-500', 'bg-emerald-600'];
+                  const badgeColor = badgeColors[idx % badgeColors.length];
+                  return (
+                    <div key={idx} className="flex items-center justify-between p-4 rounded-2xl border border-slate-200/80 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/50">
+                      <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-2xl ${badgeColor} text-white font-black text-xs shrink-0 shadow-sm`}>
+                          {slot.time}
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">{slot.subject}</h4>
+                          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                            {slot.room} • {slot.semester || 'Semester'} {slot.branch ? `• ${slot.branch}` : ''}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">{slot.subject}</h4>
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{slot.room} • Semester 5 (Section A) • 45 Students</p>
-                      </div>
+                      <Link
+                        to="/faculty/attendance"
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xs font-black shadow-md cursor-pointer shrink-0"
+                      >
+                        Mark Present
+                      </Link>
                     </div>
-                    <Link
-                      to="/faculty/attendance"
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-xs font-black shadow-md cursor-pointer shrink-0"
-                    >
-                      Mark Present
-                    </Link>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -355,29 +405,22 @@ export const Dashboard = () => {
               Assigned Subjects
             </h3>
             <div className="space-y-2.5">
-              <div className="p-3 rounded-2xl border border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-slate-900 dark:text-white">DBMS (CS-501)</span>
-                  <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-md">Sem 5</span>
+              {facultyAssignedSubjects.length === 0 ? (
+                <div className="p-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-xs text-slate-400">
+                  {facultyProfile?.specialization
+                    ? `Specialization: ${facultyProfile.specialization}`
+                    : 'No assigned subjects in the active timetable.'}
                 </div>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-1">4 Credits • 45 Students Enrolled</p>
-              </div>
-
-              <div className="p-3 rounded-2xl border border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-slate-900 dark:text-white">Operating Systems (CS-502)</span>
-                  <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-md">Sem 5</span>
-                </div>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-1">4 Credits • 42 Students Enrolled</p>
-              </div>
-
-              <div className="p-3 rounded-2xl border border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-extrabold text-slate-900 dark:text-white">Java Programming (CS-303)</span>
-                  <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-md">Sem 3</span>
-                </div>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mt-1">3 Credits • 50 Students Enrolled</p>
-              </div>
+              ) : (
+                facultyAssignedSubjects.map((subj, idx) => (
+                  <div key={idx} className="p-3 rounded-2xl border border-slate-100 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-800/40">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold text-slate-900 dark:text-white">{subj}</span>
+                      <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded-md">Assigned</span>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -523,22 +566,30 @@ export const Dashboard = () => {
               Today's Classes Schedule ({activeDayName})
             </h3>
             <div className="space-y-3">
-              {todaySlots.map((slot, idx) => {
-                const badgeColors = ['bg-indigo-600', 'bg-violet-600', 'bg-amber-500', 'bg-emerald-600'];
-                const badgeColor = badgeColors[idx % badgeColors.length];
-                return (
-                  <div key={idx} className="flex items-center justify-between p-4 rounded-2xl border border-slate-200/80 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/50">
-                    <div className="flex items-center gap-3">
-                      <span className={`p-2.5 rounded-xl ${badgeColor} text-white font-bold text-xs shrink-0 shadow-sm`}>{slot.time}</span>
-                      <div>
-                        <h4 className="text-xs font-extrabold text-slate-900 dark:text-white">{slot.subject} ({slot.room})</h4>
-                        <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Faculty: {slot.faculty}</p>
+              {studentTodaySlots.length === 0 ? (
+                <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850/50">
+                  <Clock className="h-8 w-8 text-slate-400 dark:text-slate-500 mx-auto mb-2 opacity-60" />
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No classes scheduled for today ({activeDayName})</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Enjoy your study time or check for upcoming events.</p>
+                </div>
+              ) : (
+                studentTodaySlots.map((slot, idx) => {
+                  const badgeColors = ['bg-indigo-600', 'bg-violet-600', 'bg-amber-500', 'bg-emerald-600'];
+                  const badgeColor = badgeColors[idx % badgeColors.length];
+                  return (
+                    <div key={idx} className="flex items-center justify-between p-4 rounded-2xl border border-slate-200/80 bg-slate-50/70 dark:border-slate-800 dark:bg-slate-800/50">
+                      <div className="flex items-center gap-3">
+                        <span className={`p-2.5 rounded-xl ${badgeColor} text-white font-bold text-xs shrink-0 shadow-sm`}>{slot.time}</span>
+                        <div>
+                          <h4 className="text-xs font-extrabold text-slate-900 dark:text-white">{slot.subject} ({slot.room})</h4>
+                          <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Faculty: {slot.faculty}</p>
+                        </div>
                       </div>
+                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-full border border-emerald-100 shrink-0">✓ Scheduled</span>
                     </div>
-                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-full border border-emerald-100 shrink-0">✓ Scheduled</span>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 
