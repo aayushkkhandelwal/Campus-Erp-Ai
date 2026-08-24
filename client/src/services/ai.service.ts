@@ -249,15 +249,15 @@ export const aiService = {
     }
 
     // Pre-sort variables for optimal CSP ordering:
-    // 1. Labs first (more restrictive room requirements)
-    // 2. Higher weekly hours first (hardest to place)
+    // 1. Labs first (more restrictive room requirements and consecutive period constraints)
+    // 2. Group by section and subject so sessionIdx 0 is immediately followed by sessionIdx 1
+    // 3. Higher weekly hours first
     variablesList.sort((a, b) => {
       if (a.isLab && !b.isLab) return -1;
       if (!a.isLab && b.isLab) return 1;
-      const aHours = subjHoursMap[a.subject] || 3;
-      const bHours = subjHoursMap[b.subject] || 3;
-      if (bHours !== aHours) return bHours - aHours;
-      return a.section.localeCompare(b.section);
+      if (a.section !== b.section) return a.section.localeCompare(b.section);
+      if (a.subject !== b.subject) return a.subject.localeCompare(b.subject);
+      return a.sessionIdx - b.sessionIdx;
     });
 
     interface CSPVal {
@@ -335,7 +335,7 @@ export const aiService = {
 
       solve(index = 0): boolean {
         this.iterations++;
-        if (this.iterations > 15000) {
+        if (this.iterations > 25000) {
           return false; // Iterations cap per restart attempt
         }
 
@@ -346,17 +346,73 @@ export const aiService = {
         const v = this.variables[index];
         const qualifiedFaculty = this.getQualifiedFaculty(v.subject);
 
-        // Pre-build shuffled time slots
+        // Consecutive lab periods constraint:
+        // If this variable is sessionIdx > 0 for a LAB, it must immediately follow sessionIdx - 1 in the next period
+        if (v.isLab && v.sessionIdx > 0) {
+          const prevVarId = `${v.section}-${v.subject}-${v.sessionIdx - 1}`;
+          const prevVal = this.assignment[prevVarId];
+          if (!prevVal) return false;
+
+          const prevPeriodIdx = this.periods.findIndex(p => p.id === prevVal.period.id);
+          if (prevPeriodIdx === -1 || prevPeriodIdx + 1 >= this.periods.length) return false;
+
+          const targetPeriod = this.periods[prevPeriodIdx + 1];
+          const periodId = targetPeriod.id;
+          const day = prevVal.day;
+          const chosenRoom = prevVal.room;
+          const faculty = prevVal.faculty;
+
+          // Check if target consecutive period is free
+          if (this.sectionTimeline.has(`${v.section}-${day}-${periodId}`)) return false;
+          if (this.roomTimeline.has(`${chosenRoom}-${day}-${periodId}`)) return false;
+          if (this.facultyTimeline.has(`${faculty.id}-${day}-${periodId}`)) return false;
+
+          const currentWorkload = this.facultyWorkload.get(faculty.id) || 0;
+          if (currentWorkload >= faculty.weeklyHours) return false;
+
+          const subDailyKey = `${v.section}-${v.subject}-${day}`;
+          const currentDaily = this.sectionSubjectDayCount.get(subDailyKey) || 0;
+
+          // Make Assignment
+          this.assignment[v.id] = { day, period: targetPeriod, room: chosenRoom, faculty };
+          this.facultyTimeline.add(`${faculty.id}-${day}-${periodId}`);
+          this.roomTimeline.add(`${chosenRoom}-${day}-${periodId}`);
+          this.sectionTimeline.add(`${v.section}-${day}-${periodId}`);
+          this.sectionSubjectDayCount.set(subDailyKey, currentDaily + 1);
+          this.facultyWorkload.set(faculty.id, currentWorkload + 1);
+
+          if (this.solve(index + 1)) {
+            return true;
+          }
+
+          // Backtrack
+          delete this.assignment[v.id];
+          this.facultyTimeline.delete(`${faculty.id}-${day}-${periodId}`);
+          this.roomTimeline.delete(`${chosenRoom}-${day}-${periodId}`);
+          this.sectionTimeline.delete(`${v.section}-${day}-${periodId}`);
+          this.sectionSubjectDayCount.set(subDailyKey, currentDaily);
+          this.facultyWorkload.set(faculty.id, currentWorkload);
+
+          return false;
+        }
+
+        // Pre-build shuffled time slots (for sessionIdx === 0 or lectures)
         const timeSlots: { day: string; period: typeof periodCols[0] }[] = [];
         for (const day of this.days) {
-          for (const period of this.periods) {
+          for (let pIdx = 0; pIdx < this.periods.length; pIdx++) {
+            const period = this.periods[pIdx];
+            // If lab sessionIdx === 0 with multiple hours, ensure there is room for remaining consecutive periods
+            const totalHours = this.subjectWeeklyHours[v.subject] || (v.isLab ? 2 : 4);
+            if (v.isLab && pIdx + totalHours > this.periods.length) {
+              continue;
+            }
             timeSlots.push({ day, period });
           }
         }
         timeSlots.sort(() => Math.random() - 0.5);
 
         const weeklyHours = this.subjectWeeklyHours[v.subject] || 4;
-        const maxDaily = Math.ceil(weeklyHours / this.days.length);
+        const maxDaily = v.isLab ? weeklyHours : Math.ceil(weeklyHours / this.days.length);
 
         for (const slot of timeSlots) {
           const { day, period } = slot;
@@ -619,7 +675,8 @@ export function validateGeneratedSchedule(
       // Dynamic Subject Daily Limit Check based on total scheduled hours in the batch
       const weeklyHoursNeeded = subjectWeeklyHoursCount[section]?.[subject] || 4;
       const daysInWeek = 6; // Mon-Sat
-      const maxDaily = Math.ceil(weeklyHoursNeeded / daysInWeek);
+      const isLab = subject.toLowerCase().includes('lab') || subject.toLowerCase().includes('practical');
+      const maxDaily = isLab ? weeklyHoursNeeded : Math.ceil(weeklyHoursNeeded / daysInWeek);
 
       // Count total occurrences of this subject on this day for this section in the batch
       let dailyCount = 0;

@@ -50,6 +50,28 @@ const formatTimeTo12h = (time24: string): string => {
   return `${String(hour12).padStart(2, '0')}:${minStr} ${ampm}`;
 };
 
+const isLabSlot = (slot: any) => {
+  if (!slot) return false;
+  if (slot.type && typeof slot.type === 'string' && (slot.type.toUpperCase() === 'LAB' || slot.type.toUpperCase() === 'PRACTICAL')) {
+    return true;
+  }
+  if (slot.subjectType && typeof slot.subjectType === 'string' && slot.subjectType.toUpperCase() === 'LAB') {
+    return true;
+  }
+  if (slot.subject && typeof slot.subject === 'string' && slot.subject.toUpperCase().includes('LAB')) {
+    return true;
+  }
+  return false;
+};
+
+const isSameLab = (slotA: any, slotB: any) => {
+  if (!slotA || !slotB) return false;
+  if (!isLabSlot(slotA) || !isLabSlot(slotB)) return false;
+  const subjA = (slotA.subject || '').trim().toLowerCase();
+  const subjB = (slotB.subject || '').trim().toLowerCase();
+  return subjA !== '' && subjA === subjB;
+};
+
 export const AITimetableGenerator = () => {
   const [semester, setSemester] = useState('Semester 5');
   const [branch, setBranch] = useState('Information Technology');
@@ -428,16 +450,24 @@ export const AITimetableGenerator = () => {
 
       days.forEach(day => {
         tableRowsHtml += `<tr><td class="day-cell">${day}</td>`;
-        timeCols.forEach(col => {
-          // Precise match using period ID or fallback time label
-          const slot = sectionSlots.find(s => 
-            s.day === day && 
-            (s.periodId === col.id || s.time === col.label)
-          );
+        const daySlots = timeCols.map(col =>
+          sectionSlots.find(s => s.day === day && (s.periodId === col.id || s.time === col.label))
+        );
+
+        let i = 0;
+        while (i < timeCols.length) {
+          const slot = daySlots[i];
+          let span = 1;
+          if (slot && isLabSlot(slot)) {
+            while (i + span < timeCols.length && isSameLab(slot, daySlots[i + span])) {
+              span++;
+            }
+          }
 
           if (slot) {
+            const spanAttr = span > 1 ? ` colspan="${span}"` : '';
             tableRowsHtml += `
-              <td>
+              <td${spanAttr}>
                 <div class="subject-title">${slot.subject}</div>
                 <div class="slot-details">
                   <span class="room-badge">${slot.room}</span>
@@ -448,7 +478,9 @@ export const AITimetableGenerator = () => {
           } else {
             tableRowsHtml += `<td class="empty-cell">-</td>`;
           }
-        });
+
+          i += span;
+        }
         tableRowsHtml += '</tr>';
       });
 
@@ -1097,38 +1129,56 @@ export const AITimetableGenerator = () => {
                         { id: undefined, name: 'Period 6', label: '01:15 PM - 02:15 PM' }
                       ];
 
+                  const daySlots = timeCols.map(col =>
+                    activeSectionSlots.find(s => s.day === dayName && (s.periodId === col.id || s.time === col.label))
+                  );
+                  const rowCells: { colIndex: number; slot: any; colSpan: number }[] = [];
+                  let i = 0;
+                  while (i < timeCols.length) {
+                    const currentSlot = daySlots[i];
+                    let span = 1;
+                    if (currentSlot && isLabSlot(currentSlot)) {
+                      while (i + span < timeCols.length && isSameLab(currentSlot, daySlots[i + span])) {
+                        span++;
+                      }
+                    }
+                    rowCells.push({ colIndex: i, slot: currentSlot, colSpan: span });
+                    i += span;
+                  }
+
                   return (
                     <tr key={dayName} className="hover:bg-amber-50/10 dark:hover:bg-stone-800/5 transition-colors">
                       <td className="py-4 px-3 font-black text-amber-900 dark:text-amber-400 border-r border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-950/20 text-xs font-['Outfit']">
                         {DAY_SHORT[dayName] || dayName}
                       </td>
-                      {timeCols.map((col, idx) => {
-                        const slot = activeSectionSlots.find(s => s.day === dayName && (s.periodId === col.id || s.time === col.label));
-                        return (
-                          <td key={idx} className="p-3 border-r border-stone-200 dark:border-stone-800 relative align-middle">
-                            {slot ? (
-                              <div className="space-y-1 bg-amber-50/20 dark:bg-stone-850/20 p-2.5 rounded-xl border border-amber-100/40 dark:border-stone-750/30">
-                                {/* Subject Name */}
-                                <div className="text-xs font-black text-stone-900 dark:text-white tracking-tight leading-tight">
-                                  {slot.subject}
-                                </div>
-                                
-                                {/* Room & Faculty initials */}
-                                <div className="flex items-center justify-between text-[9px] font-bold text-stone-500 dark:text-stone-400 border-t border-stone-100 dark:border-stone-800/40 pt-1 mt-1 font-mono">
-                                  <span className="bg-stone-100 dark:bg-stone-800 px-1 py-0.5 rounded text-[8px] tracking-wide text-stone-600 dark:text-stone-300">
-                                    {slot.room}
-                                  </span>
-                                  <span className="italic shrink-0 font-black text-amber-600 dark:text-amber-400">
-                                    {slot.faculty.split(' ').map(n => n[0]).join('') || slot.faculty}
-                                  </span>
-                                </div>
+                      {rowCells.map(({ colIndex, slot, colSpan }) => (
+                        <td
+                          key={colIndex}
+                          colSpan={colSpan > 1 ? colSpan : undefined}
+                          className="p-3 border-r border-stone-200 dark:border-stone-800 relative align-middle"
+                        >
+                          {slot ? (
+                            <div className="space-y-1 bg-amber-50/20 dark:bg-stone-850/20 p-2.5 rounded-xl border border-amber-100/40 dark:border-stone-750/30">
+                              {/* Subject Name */}
+                              <div className="text-xs font-black text-stone-900 dark:text-white tracking-tight leading-tight">
+                                {slot.subject}
                               </div>
-                            ) : (
-                              <span className="text-[10px] text-stone-400 dark:text-stone-600 font-medium italic">-</span>
-                            )}
-                          </td>
-                        );
-                      })}
+                              
+                              {/* Room & Faculty initials */}
+                              <div className="flex items-center justify-between text-[9px] font-bold text-stone-500 dark:text-stone-400 border-t border-stone-100 dark:border-stone-800/40 pt-1 mt-1 font-mono">
+                                <span className="bg-stone-100 dark:bg-stone-800 px-1 py-0.5 rounded text-[8px] tracking-wide text-stone-600 dark:text-stone-300">
+                                  {slot.room}
+                                </span>
+                                <span className="italic shrink-0 font-black text-amber-600 dark:text-amber-400">
+                                  {slot.faculty ? (slot.faculty.split(' ').map((n: string) => n[0]).join('') || slot.faculty) : ''}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-stone-400 dark:text-stone-600 font-medium italic">-</span>
+                          )}
+                        </td>
+                      ))}
                     </tr>
                   );
                 })}
