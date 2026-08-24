@@ -32,7 +32,7 @@ export const StudentTimetable = () => {
     enabled: isStudent,
   });
 
-  // Auto-populate semester and department from the student's profile
+  // Auto-populate semester, department, and section from the student's profile
   useEffect(() => {
     if (studentProfile) {
       if (studentProfile.semester) {
@@ -41,6 +41,9 @@ export const StudentTimetable = () => {
       }
       if (studentProfile.department?.name) {
         setSelectedBranch(studentProfile.department.name);
+      }
+      if (studentProfile.section) {
+        setSelectedSection(studentProfile.section);
       }
     }
   }, [studentProfile]);
@@ -297,7 +300,7 @@ export const StudentTimetable = () => {
             Class Timetable
           </h1>
           <p className="text-xs font-semibold text-stone-500 dark:text-stone-400 mt-1 font-mono">
-            SKIT • {selectedBranch} • {selectedSemester}
+            SKIT • {selectedBranch} • {selectedSemester} ({selectedSection})
           </p>
         </div>
 
@@ -321,7 +324,7 @@ export const StudentTimetable = () => {
                 Enrolled Academic Schedule
               </div>
               <div className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 font-mono mt-0.5">
-                SKIT • {selectedBranch} • {selectedSemester}
+                SKIT • {selectedBranch} • {selectedSemester} ({selectedSection})
               </div>
             </div>
           </div>
